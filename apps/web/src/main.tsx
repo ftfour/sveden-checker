@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clipboard,
   Database,
+  ExternalLink,
   FileCheck2,
   LoaderCircle,
   MonitorCheck,
@@ -23,10 +24,21 @@ import "./styles.css";
 type LegalSource = {
   id: string;
   title: string;
+  source_url?: string | null;
   short_title: string | null;
   status: string | null;
   used_for: string | null;
   local_file: string | null;
+};
+
+type CheckLegalReference = {
+  id: string;
+  title: string;
+  shortTitle: string | null;
+  point: string;
+  localFile: string | null;
+  localFileUrl: string | null;
+  sourceUrl: string | null;
 };
 
 type CheckItemStatus = "found" | "partial" | "empty" | "missing" | "error";
@@ -48,6 +60,8 @@ type CheckResultItem = {
   score: number;
   message: string;
   value?: string;
+  legalSourceId?: string;
+  legalSource?: CheckLegalReference;
   severity?: "error" | "warning" | "info";
 };
 
@@ -88,6 +102,7 @@ type Recommendation = {
   problem: string;
   recommendation: string;
   exampleHtml: string;
+  legalSource?: CheckLegalReference;
 };
 
 const LAST_REPORT_STORAGE_KEY = "sveden_checker_last_report";
@@ -310,7 +325,28 @@ function HomePage() {
                     {source.local_file && (
                       <div>
                         <dt>Локальный файл</dt>
-                        <dd>{source.local_file}</dd>
+                        <dd>
+                          <a
+                            className="legal-link"
+                            href={legalFileUrl(source.id)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <FileCheck2 size={16} aria-hidden="true" />
+                            {source.local_file}
+                          </a>
+                        </dd>
+                      </div>
+                    )}
+                    {source.source_url && (
+                      <div>
+                        <dt>Официальный источник</dt>
+                        <dd>
+                          <a className="legal-link" href={source.source_url} rel="noreferrer" target="_blank">
+                            <ExternalLink size={16} aria-hidden="true" />
+                            Открыть источник
+                          </a>
+                        </dd>
                       </div>
                     )}
                   </dl>
@@ -530,6 +566,7 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
                       <strong>{item.title}</strong>
                       <p>{item.message}</p>
                       {item.value && <small>{item.value}</small>}
+                      {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
                     </div>
                   </li>
                 ))}
@@ -739,6 +776,14 @@ function RecommendationGroup({
                 <dt>itemprop</dt>
                 <dd>{recommendation.itemprop}</dd>
               </div>
+              {recommendation.legalSource && (
+                <div>
+                  <dt>Нормативное основание</dt>
+                  <dd>
+                    <LegalReferenceView reference={recommendation.legalSource} />
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Проблема</dt>
                 <dd>{recommendation.problem}</dd>
@@ -769,6 +814,29 @@ function RecommendationGroup({
         ))}
       </div>
     </section>
+  );
+}
+
+function LegalReferenceView({ reference, compact = false }: { reference: CheckLegalReference; compact?: boolean }) {
+  return (
+    <div className={compact ? "legal-reference legal-reference--compact" : "legal-reference"}>
+      <strong>{reference.shortTitle ?? reference.title}</strong>
+      <p>{reference.point}</p>
+      <div className="legal-reference__links">
+        {reference.localFileUrl && (
+          <a href={reference.localFileUrl} rel="noreferrer" target="_blank">
+            <FileCheck2 size={15} aria-hidden="true" />
+            {compact ? "Документ" : reference.localFile ?? "Открыть документ"}
+          </a>
+        )}
+        {reference.sourceUrl && (
+          <a href={reference.sourceUrl} rel="noreferrer" target="_blank">
+            <ExternalLink size={15} aria-hidden="true" />
+            Официальный источник
+          </a>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -812,10 +880,15 @@ function buildRecommendations(report: CheckReport): Recommendation[] {
           priority,
           problem: recommendationProblem(item.status),
           recommendation: recommendationText(item.status, itemprop),
-          exampleHtml: buildExampleHtml(itemprop, item.title, item.ruleType)
+          exampleHtml: buildExampleHtml(itemprop, item.title, item.ruleType),
+          legalSource: item.legalSource
         };
       })
   );
+}
+
+function legalFileUrl(id: string): string {
+  return `/api/legal-sources/${encodeURIComponent(id)}/file`;
 }
 
 function calculatePriority(item: CheckResultItem): RecommendationPriority {
@@ -899,6 +972,10 @@ function priorityLabel(priority: RecommendationPriority): string {
 }
 
 function whyImportant(recommendation: Recommendation): string {
+  if (recommendation.legalSource) {
+    return `Пункт связан с нормативным основанием: ${recommendation.legalSource.point}`;
+  }
+
   if (recommendation.status === "error") {
     return "Если страница не открывается, автоматизированная проверка не сможет прочитать сведения раздела.";
   }

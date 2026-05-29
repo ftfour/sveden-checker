@@ -325,6 +325,21 @@ dd {
   color: var(--text);
 }
 
+.legal-link,
+.legal-reference__links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--blue-dark);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.legal-link:hover,
+.legal-reference__links a:hover {
+  text-decoration: underline;
+}
+
 .section-list {
   display: flex;
   flex-wrap: wrap;
@@ -659,6 +674,42 @@ dd {
   color: var(--blue-dark);
   overflow-wrap: anywhere;
   line-height: 1.45;
+}
+
+.legal-reference {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #c7d7ee;
+  border-radius: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: #f4f8ff;
+}
+
+.legal-reference--compact {
+  padding: 9px;
+}
+
+.legal-reference strong {
+  color: var(--blue-dark);
+  font-size: 0.9rem;
+}
+
+.legal-reference p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.legal-reference__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.legal-reference__links a {
+  font-size: 0.88rem;
 }
 
 .check-item--found {

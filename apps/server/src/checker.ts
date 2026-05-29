@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
+import { getLegalSources } from "@sveden-checker/database";
 import { getSvedenItempropRuleset, type SvedenRuleSection } from "@sveden-checker/rulesets";
-import type { CheckReport, CheckReportSection, CheckResultItem, CheckSummary } from "@sveden-checker/shared";
+import type { CheckLegalReference, CheckReport, CheckReportSection, CheckResultItem, CheckSummary, LegalSource } from "@sveden-checker/shared";
 
 type PageCheckSection = {
   id: string;
@@ -42,19 +43,21 @@ export async function checkSvedenSite(rawUrl: string): Promise<CheckReport> {
   const siteUrl = normalizeSiteUrl(rawUrl);
   const ruleset = getSvedenItempropRuleset();
   const rulesBySection = new Map(ruleset.sections.map((section) => [section.section, section]));
+  const legalSourcesById = new Map(getLegalSources().map((source) => [source.id, source]));
 
   await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"));
 
   const sections = await Promise.all(
     mainSvedenSections.map((section) => checkSection(siteUrl, section, rulesBySection.get(section.id)))
   );
+  const sectionsWithLegalReferences = sections.map((section) => attachLegalReferences(section, legalSourcesById));
 
   return {
     siteUrl,
     checkedAt: new Date().toISOString(),
-    overallScore: calculateOverallScore(sections),
-    summary: mergeSummaries(sections.map((section) => section.summary)),
-    sections
+    overallScore: calculateOverallScore(sectionsWithLegalReferences),
+    summary: mergeSummaries(sectionsWithLegalReferences.map((section) => section.summary)),
+    sections: sectionsWithLegalReferences
   };
 }
 
@@ -474,6 +477,68 @@ function mergeSummaries(summaries: CheckSummary[]): CheckSummary {
     }),
     { total: 0, found: 0, partial: 0, missing: 0, errors: 0 }
   );
+}
+
+function attachLegalReferences(
+  section: CheckReportSection,
+  legalSourcesById: Map<string, LegalSource>
+): CheckReportSection {
+  return {
+    ...section,
+    items: section.items.map((item) => {
+      if (!item.legalSourceId) {
+        return item;
+      }
+
+      const source = legalSourcesById.get(item.legalSourceId);
+      if (!source) {
+        return item;
+      }
+
+      return {
+        ...item,
+        legalSource: buildLegalReference(item, section, source)
+      };
+    })
+  };
+}
+
+function buildLegalReference(item: CheckResultItem, section: CheckReportSection, source: LegalSource): CheckLegalReference {
+  return {
+    id: source.id,
+    title: source.title,
+    shortTitle: source.short_title,
+    point: buildLegalPoint(item, section, source),
+    localFile: source.local_file,
+    localFileUrl: source.local_file ? `/api/legal-sources/${encodeURIComponent(source.id)}/file` : null,
+    sourceUrl: source.source_url
+  };
+}
+
+function buildLegalPoint(item: CheckResultItem, section: CheckReportSection, source: LegalSource): string {
+  const itemprop = item.itemprop ? `itemprop="${item.itemprop}"` : `ключ правила "${item.key}"`;
+
+  if (source.id === "fz-273-art-29") {
+    return `Статья 29, требование об открытом размещении сведений; раздел "${section.title}", ${itemprop}.`;
+  }
+
+  if (source.id === "pp-rf-1802") {
+    return `Правила размещения информации на официальном сайте; раздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+  }
+
+  if (source.id.startsWith("rosobrnadzor-1493") || source.id === "rosobrnadzor-1353") {
+    return `Структура специального раздела и HTML-разметка; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+  }
+
+  if (source.id.startsWith("rosobrnadzor-955")) {
+    return `Проверочный лист по официальному сайту; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+  }
+
+  if (source.id.startsWith("methodical")) {
+    return `Методические рекомендации по представлению сведений; подраздел "${section.title}", ${itemprop}.`;
+  }
+
+  return `${source.short_title ?? source.title}; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
 }
 
 function buildSectionUrl(siteUrl: string, path: string): string {

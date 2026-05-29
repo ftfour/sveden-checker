@@ -48,7 +48,18 @@ export type CheckResultItem = {
   message: string;
   value?: string;
   legalSourceId?: string;
+  legalSource?: CheckLegalReference;
   severity?: "error" | "warning" | "info";
+};
+
+export type CheckLegalReference = {
+  id: string;
+  title: string;
+  shortTitle: string | null;
+  point: string;
+  localFile: string | null;
+  localFileUrl: string | null;
+  sourceUrl: string | null;
 };
 
 export type CheckReportSection = {

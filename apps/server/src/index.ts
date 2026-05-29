@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { access, readFile } from "node:fs/promises";
-import { extname, join, relative, resolve, sep } from "node:path";
-import { getLegalSources, openDatabase } from "@sveden-checker/database";
+import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { findWorkspaceRoot, getLegalSources, openDatabase } from "@sveden-checker/database";
 import type { CheckReport, CheckRequest, ProjectInfo } from "@sveden-checker/shared";
 import { checkSvedenSite } from "./checker.js";
 
@@ -18,9 +18,45 @@ app.get("/api/health", async () => ({
 
 app.get("/api/legal-sources", async () => getLegalSources());
 
+app.get<{ Params: { id: string } }>("/api/legal-sources/:id/file", async (request, reply) => {
+  const source = getLegalSources().find((item) => item.id === request.params.id);
+
+  if (!source?.local_file) {
+    return reply.status(404).send({
+      error: "legal_file_not_found",
+      message: "Локальный файл нормативного документа не найден"
+    });
+  }
+
+  const legalDocumentsRoot = resolve(
+    process.env.SVEDEN_CHECKER_LEGAL_DIR ?? join(findWorkspaceRoot(), "legal-documents")
+  );
+  const filePath = resolve(join(legalDocumentsRoot, source.local_file));
+
+  if (!isInsideDirectory(legalDocumentsRoot, filePath)) {
+    return reply.status(400).send({
+      error: "invalid_legal_file_path",
+      message: "Некорректный путь к нормативному документу"
+    });
+  }
+
+  try {
+    const file = await readFile(filePath);
+    return reply
+      .type(contentType(filePath))
+      .header("content-disposition", `inline; filename*=UTF-8''${encodeRfc5987ValueChars(basename(filePath))}`)
+      .send(file);
+  } catch {
+    return reply.status(404).send({
+      error: "legal_file_not_found",
+      message: "Файл нормативного документа отсутствует в legal-documents"
+    });
+  }
+});
+
 app.get("/api/project-info", async (): Promise<ProjectInfo> => ({
   name: "Sveden Checker",
-  version: "0.1.0",
+  version: "0.1.2",
   purpose:
     "Локальное веб-приложение для предварительной самопроверки раздела «Сведения об образовательной организации» на сайте образовательной организации.",
   warning:
@@ -100,10 +136,14 @@ async function fileExists(path: string): Promise<boolean> {
 function contentType(path: string): string {
   const types: Record<string, string> = {
     ".css": "text/css; charset=utf-8",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".html": "text/html; charset=utf-8",
     ".ico": "image/x-icon",
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
+    ".pdf": "application/pdf",
     ".png": "image/png",
     ".svg": "image/svg+xml",
     ".txt": "text/plain; charset=utf-8",
@@ -116,4 +156,11 @@ function contentType(path: string): string {
 function isInsideDirectory(root: string, target: string): boolean {
   const relation = relative(root, target);
   return relation === "" || (!relation.startsWith("..") && !relation.includes(`..${sep}`));
+}
+
+function encodeRfc5987ValueChars(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/['()]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/\*/g, "%2A")
+    .replace(/%(?:7C|60|5E)/g, decodeURIComponent);
 }
