@@ -1,4 +1,6 @@
 import Fastify from "fastify";
+import { access, readFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { getLegalSources, openDatabase } from "@sveden-checker/database";
 import type { CheckReport, CheckRequest, ProjectInfo } from "@sveden-checker/shared";
 import { checkSvedenSite } from "./checker.js";
@@ -46,6 +48,36 @@ app.post<{ Body: CheckRequest }>("/api/check", async (request, reply): Promise<C
   }
 });
 
+app.setNotFoundHandler(async (request, reply) => {
+  if (request.url.startsWith("/api/")) {
+    return reply.status(404).send({
+      error: "not_found",
+      message: "API endpoint not found"
+    });
+  }
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return reply.status(404).send();
+  }
+
+  const staticRoot = process.env.SVEDEN_CHECKER_WEB_DIR ?? join(process.cwd(), "apps", "web", "dist");
+  const requestedPath = decodeURIComponent(request.url.split("?")[0] ?? "/");
+  const normalizedPath = requestedPath === "/" ? "/index.html" : requestedPath;
+  const filePath = join(staticRoot, normalizedPath);
+  const fallbackPath = join(staticRoot, "index.html");
+  const pathToServe = await fileExists(filePath) ? filePath : fallbackPath;
+
+  try {
+    const file = await readFile(pathToServe);
+    return reply.type(contentType(pathToServe)).send(file);
+  } catch {
+    return reply.status(404).send({
+      error: "not_found",
+      message: "Frontend build not found"
+    });
+  }
+});
+
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "127.0.0.1";
 
@@ -54,4 +86,29 @@ try {
 } catch (error) {
   app.log.error(error);
   process.exit(1);
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function contentType(path: string): string {
+  const types: Record<string, string> = {
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".ico": "image/x-icon",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".txt": "text/plain; charset=utf-8",
+    ".webp": "image/webp"
+  };
+
+  return types[extname(path)] ?? "application/octet-stream";
 }

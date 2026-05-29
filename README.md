@@ -50,6 +50,28 @@ npx pnpm@9.15.9 dev
 - frontend: `http://127.0.0.1:5173`
 - backend API: `http://127.0.0.1:3001`
 
+## Windows release
+
+Portable-сборка для Windows x64 создается командой:
+
+```bash
+pnpm release:win
+```
+
+Готовый архив появляется в:
+
+```text
+release/sveden-checker-0.1.0-win-x64.zip
+```
+
+Архив включает Windows Node.js runtime, собранный frontend, bundled backend, нормативные документы и production-зависимости, включая native-модуль SQLite. После распаковки пользователь запускает:
+
+```text
+start-sveden-checker.cmd
+```
+
+Приложение открывается в браузере на `http://127.0.0.1:5173`.
+
 ## База данных
 
 SQLite-база создается автоматически при первом запуске backend или команды:
