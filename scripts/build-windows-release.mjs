@@ -1,10 +1,11 @@
 import { build } from "esbuild";
-import { copyFile, cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const version = "0.1.0";
+const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+const version = packageJson.version;
 const releaseRoot = join(root, "release");
 const distRoot = join(releaseRoot, `sveden-checker-${version}-win-x64`);
 const appRoot = join(distRoot, "app");
@@ -64,7 +65,7 @@ set HOST=127.0.0.1
 set PORT=5173
 set SVEDEN_CHECKER_WEB_DIR=%~dp0public
 set SVEDEN_CHECKER_DB=%~dp0data\sveden-checker.sqlite
-start "" "http://127.0.0.1:5173"
+start "" cmd /c "timeout /t 2 /nobreak >nul & start "" http://127.0.0.1:5173"
 "%~dp0node\node.exe" "%~dp0app\server.mjs"
 pause
 `

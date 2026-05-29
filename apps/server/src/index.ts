@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import { access, readFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { getLegalSources, openDatabase } from "@sveden-checker/database";
 import type { CheckReport, CheckRequest, ProjectInfo } from "@sveden-checker/shared";
 import { checkSvedenSite } from "./checker.js";
@@ -60,12 +60,12 @@ app.setNotFoundHandler(async (request, reply) => {
     return reply.status(404).send();
   }
 
-  const staticRoot = process.env.SVEDEN_CHECKER_WEB_DIR ?? join(process.cwd(), "apps", "web", "dist");
+  const staticRoot = resolve(process.env.SVEDEN_CHECKER_WEB_DIR ?? join(process.cwd(), "apps", "web", "dist"));
   const requestedPath = decodeURIComponent(request.url.split("?")[0] ?? "/");
   const normalizedPath = requestedPath === "/" ? "/index.html" : requestedPath;
-  const filePath = join(staticRoot, normalizedPath);
+  const filePath = resolve(join(staticRoot, normalizedPath));
   const fallbackPath = join(staticRoot, "index.html");
-  const pathToServe = await fileExists(filePath) ? filePath : fallbackPath;
+  const pathToServe = isInsideDirectory(staticRoot, filePath) && (await fileExists(filePath)) ? filePath : fallbackPath;
 
   try {
     const file = await readFile(pathToServe);
@@ -111,4 +111,9 @@ function contentType(path: string): string {
   };
 
   return types[extname(path)] ?? "application/octet-stream";
+}
+
+function isInsideDirectory(root: string, target: string): boolean {
+  const relation = relative(root, target);
+  return relation === "" || (!relation.startsWith("..") && !relation.includes(`..${sep}`));
 }
