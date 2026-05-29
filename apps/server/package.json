@@ -1,0 +1,24 @@
+{
+  "name": "@sveden-checker/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "pnpm --filter @sveden-checker/shared --filter @sveden-checker/rulesets --filter @sveden-checker/database build && tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@sveden-checker/database": "workspace:*",
+    "@sveden-checker/rulesets": "workspace:*",
+    "@sveden-checker/shared": "workspace:*",
+    "cheerio": "1.0.0-rc.12",
+    "fastify": "^4.29.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "tsx": "^4.19.4"
+  }
+}

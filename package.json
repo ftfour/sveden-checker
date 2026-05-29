@@ -1,0 +1,17 @@
+{
+  "name": "sveden-checker",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @sveden-checker/server --filter @sveden-checker/web dev",
+    "dev:server": "pnpm --filter @sveden-checker/server dev",
+    "dev:web": "pnpm --filter @sveden-checker/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:init": "pnpm --filter @sveden-checker/database db:init"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

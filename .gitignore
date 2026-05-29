@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.log
+*.tsbuildinfo
+packages/database/data/*.sqlite
+packages/database/data/*.sqlite-*
+reports/*
+!reports/.gitkeep

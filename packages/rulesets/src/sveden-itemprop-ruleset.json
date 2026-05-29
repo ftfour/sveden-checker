@@ -1,0 +1,252 @@
+{
+  "sections": [
+    {
+      "section": "common",
+      "title": "Основные сведения",
+      "path": "/sveden/common/",
+      "items": [
+        {"key":"fullName","title":"Полное наименование образовательной организации","type":"itemprop","itemprop":"fullName","required":true,"legalSourceId":"fz-273-art-29","severity":"error"},
+        {"key":"shortName","title":"Сокращённое наименование образовательной организации","type":"itemprop","itemprop":"shortName","required":true,"legalSourceId":"fz-273-art-29","severity":"warning"},
+        {"key":"regDate","title":"Дата создания образовательной организации","type":"itemprop","itemprop":"regDate","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"address","title":"Адрес образовательной организации","type":"itemprop","itemprop":"address","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"workTime","title":"Режим и график работы","type":"itemprop","itemprop":"workTime","required":true,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"telephone","title":"Контактный телефон","type":"itemprop","itemprop":"telephone","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"email","title":"Адрес электронной почты","type":"itemprop","itemprop":"email","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"founderInfo","title":"Информация об учредителе образовательной организации","type":"itemprop","itemprop":"founderInfo","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"nameFounder","title":"Наименование учредителя","type":"itemprop","itemprop":"nameFounder","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"addressFounder","title":"Адрес учредителя","type":"itemprop","itemprop":"addressFounder","required":true,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"telFounder","title":"Контактный телефон учредителя","type":"itemprop","itemprop":"telFounder","required":true,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"mailFounder","title":"Электронная почта учредителя","type":"itemprop","itemprop":"mailFounder","required":true,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"websiteFounder","title":"Сайт учредителя","type":"itempropLink","itemprop":"websiteFounder","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"addressPlaceSet","title":"Места осуществления образовательной деятельности","type":"itemprop","itemprop":"addressPlaceSet","required":true,"legalSourceId":"pp-rf-1802","severity":"error"},
+        {"key":"addressPlacePrac","title":"Места осуществления практики","type":"itemprop","itemprop":"addressPlacePrac","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"addressPlacePodg","title":"Места проведения практической подготовки обучающихся","type":"itemprop","itemprop":"addressPlacePodg","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"addressPlaceGia","title":"Места проведения государственной итоговой аттестации","type":"itemprop","itemprop":"addressPlaceGia","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"addressPlaceDop","title":"Места осуществления образовательной деятельности по дополнительным программам","type":"itemprop","itemprop":"addressPlaceDop","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"addressPlaceOppo","title":"Места осуществления образовательной деятельности по программам профессионального обучения","type":"itemprop","itemprop":"addressPlaceOppo","required":false,"legalSourceId":"pp-rf-1802","severity":"warning"},
+        {"key":"licenseDocLink","title":"Сведения о лицензии на осуществление образовательной деятельности","type":"itempropLink","itemprop":"licenseDocLink","required":true,"legalSourceId":"pp-rf-1802","severity":"error"}
+      ]
+    },
+    {
+      "section": "struct",
+      "title": "Структура и органы управления",
+      "path": "/sveden/struct/",
+      "items": [
+        {"key":"structOrgUprav","title":"Информация о структуре и органах управления","type":"itemprop","itemprop":"structOrgUprav","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"structName","title":"Наименование органа управления или структурного подразделения","type":"itemprop","itemprop":"name","parentItemprop":"structOrgUprav","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"structFio","title":"ФИО руководителя структурного подразделения","type":"itemprop","itemprop":"fio","parentItemprop":"structOrgUprav","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"structPost","title":"Должность руководителя структурного подразделения","type":"itemprop","itemprop":"post","parentItemprop":"structOrgUprav","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"structAddress","title":"Место нахождения структурного подразделения","type":"itemprop","itemprop":"addressStr","parentItemprop":"structOrgUprav","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"structSite","title":"Сайт структурного подразделения","type":"itempropLink","itemprop":"site","parentItemprop":"structOrgUprav","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"structEmail","title":"Электронная почта структурного подразделения","type":"itemprop","itemprop":"email","parentItemprop":"structOrgUprav","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"structDivisionClause","title":"Положение о структурном подразделении","type":"itempropLink","itemprop":"divisionClauseDocLink","parentItemprop":"structOrgUprav","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"filInfo","title":"Информация о филиалах","type":"itemprop","itemprop":"filInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"nameFil","title":"Наименование филиала","type":"itemprop","itemprop":"nameFil","parentItemprop":"filInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"addressFil","title":"Место нахождения филиала","type":"itemprop","itemprop":"addressFil","parentItemprop":"filInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"websiteFil","title":"Сайт филиала","type":"itempropLink","itemprop":"websiteFil","parentItemprop":"filInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"repInfo","title":"Информация о представительствах","type":"itemprop","itemprop":"repInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"nameRep","title":"Наименование представительства","type":"itemprop","itemprop":"nameRep","parentItemprop":"repInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"addressRep","title":"Место нахождения представительства","type":"itemprop","itemprop":"addressRep","parentItemprop":"repInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"websiteRep","title":"Сайт представительства","type":"itempropLink","itemprop":"websiteRep","parentItemprop":"repInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "document",
+      "title": "Документы",
+      "path": "/sveden/document/",
+      "items": [
+        {"key":"ustavDocLink","title":"Устав образовательной организации","type":"itempropLink","itemprop":"ustavDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"localActStud","title":"Правила внутреннего распорядка обучающихся","type":"itempropLink","itemprop":"localActStud","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"localActOrder","title":"Правила внутреннего трудового распорядка","type":"itempropLink","itemprop":"localActOrder","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"localActCollec","title":"Коллективный договор","type":"itempropLink","itemprop":"localActCollec","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"reportEduDocLink","title":"Отчёт о результатах самообследования","type":"itempropLink","itemprop":"reportEduDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"prescriptionDocLink","title":"Предписания органов контроля и отчёты об их исполнении","type":"itempropLink","itemprop":"prescriptionDocLink","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"priemDocLink","title":"Правила приёма обучающихся","type":"itempropLink","itemprop":"priemDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"modeDocLink","title":"Режим занятий обучающихся","type":"itempropLink","itemprop":"modeDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"tekKontrolDocLink","title":"Формы, периодичность и порядок текущего контроля и промежуточной аттестации","type":"itempropLink","itemprop":"tekKontrolDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"perevodDocLink","title":"Порядок и основания перевода, отчисления и восстановления обучающихся","type":"itempropLink","itemprop":"perevodDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"vozDocLink","title":"Порядок оформления возникновения, приостановления и прекращения отношений","type":"itempropLink","itemprop":"vozDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"}
+      ]
+    },
+    {
+      "section": "education",
+      "title": "Образование",
+      "path": "/sveden/education/",
+      "items": [
+        {"key":"eduAccred","title":"Информация о государственной аккредитации образовательной программы","type":"itemprop","itemprop":"eduAccred","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduCode","title":"Код специальности, направления подготовки или профессии","type":"itemprop","itemprop":"eduCode","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduName","title":"Наименование образовательной программы","type":"itemprop","itemprop":"eduName","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduLevel","title":"Уровень образования","type":"itemprop","itemprop":"eduLevel","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduForm","title":"Форма обучения","type":"itemprop","itemprop":"eduForm","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"learningTerm","title":"Срок обучения","type":"itemprop","itemprop":"learningTerm","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduPred","title":"Предметы, курсы, дисциплины, предусмотренные программой","type":"itemprop","itemprop":"eduPred","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduPrac","title":"Практики, предусмотренные образовательной программой","type":"itemprop","itemprop":"eduPrac","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduLang","title":"Языки, на которых осуществляется образование","type":"itemprop","itemprop":"eduLang","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"opMain","title":"Описание образовательной программы","type":"itempropLink","itemprop":"opMain","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"educationPlan","title":"Учебный план","type":"itempropLink","itemprop":"educationPlan","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"educationAnnotation","title":"Аннотации к рабочим программам дисциплин","type":"itempropLink","itemprop":"educationAnnotation","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"educationShedule","title":"Календарный учебный график","type":"itempropLink","itemprop":"educationShedule","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"methodology","title":"Методические и иные документы образовательной программы","type":"itempropLink","itemprop":"methodology","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduChislen","title":"Численность обучающихся","type":"itemprop","itemprop":"eduChislen","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduPriem","title":"Результаты приёма","type":"itemprop","itemprop":"eduPriem","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduPerevod","title":"Результаты перевода, восстановления и отчисления","type":"itemprop","itemprop":"eduPerevod","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduNir","title":"Научно-исследовательская деятельность","type":"itemprop","itemprop":"eduNir","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduEl","title":"Электронное обучение и дистанционные образовательные технологии","type":"itemprop","itemprop":"eduEl","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduProf","title":"Профессионально-общественная аккредитация образовательной программы","type":"itemprop","itemprop":"eduProf","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "eduStandarts",
+      "title": "Образовательные стандарты и требования",
+      "path": "/sveden/eduStandarts/",
+      "items": [
+        {"key":"eduFedDoc","title":"Федеральные государственные образовательные стандарты","type":"itempropLink","itemprop":"eduFedDoc","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduStandartDoc","title":"Образовательные стандарты, утверждённые организацией","type":"itempropLink","itemprop":"eduStandartDoc","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "managers",
+      "title": "Руководство",
+      "path": "/sveden/managers/",
+      "items": [
+        {"key":"rucovodstvo","title":"Информация о руководителе образовательной организации","type":"itemprop","itemprop":"rucovodstvo","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"managerFio","title":"ФИО руководителя","type":"itemprop","itemprop":"fio","parentItemprop":"rucovodstvo","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"managerPost","title":"Должность руководителя","type":"itemprop","itemprop":"post","parentItemprop":"rucovodstvo","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"managerTelephone","title":"Контактный телефон руководителя","type":"itemprop","itemprop":"telephone","parentItemprop":"rucovodstvo","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"managerEmail","title":"Электронная почта руководителя","type":"itemprop","itemprop":"email","parentItemprop":"rucovodstvo","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"rucovodstvoFil","title":"Информация о руководителях филиалов","type":"itemprop","itemprop":"rucovodstvoFil","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"rucovodstvoRep","title":"Информация о руководителях представительств","type":"itemprop","itemprop":"rucovodstvoRep","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "employees",
+      "title": "Педагогический состав",
+      "path": "/sveden/employees/",
+      "items": [
+        {"key":"teachingStaff","title":"Информация о педагогических работниках","type":"itemprop","itemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"staffFio","title":"ФИО педагогического работника","type":"itemprop","itemprop":"fio","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"staffPost","title":"Занимаемая должность","type":"itemprop","itemprop":"post","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"staffEducation","title":"Уровень образования педагогического работника","type":"itemprop","itemprop":"teachingLevel","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"staffQualification","title":"Квалификация педагогического работника","type":"itemprop","itemprop":"teachingQual","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffDegree","title":"Учёная степень","type":"itemprop","itemprop":"degree","parentItemprop":"teachingStaff","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffAcademStat","title":"Учёное звание","type":"itemprop","itemprop":"academStat","parentItemprop":"teachingStaff","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffEmployeeQualification","title":"Сведения о повышении квалификации или профессиональной переподготовке","type":"itemprop","itemprop":"employeeQualification","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffProfDevelopment","title":"Профессиональная переподготовка","type":"itemprop","itemprop":"profDevelopment","parentItemprop":"teachingStaff","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffGenExperience","title":"Общий стаж работы","type":"itemprop","itemprop":"genExperience","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffSpecExperience","title":"Стаж работы по специальности","type":"itemprop","itemprop":"specExperience","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"staffTeachingDiscipline","title":"Преподаваемые учебные предметы, курсы, дисциплины","type":"itemprop","itemprop":"teachingDiscipline","parentItemprop":"teachingStaff","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"}
+      ]
+    },
+    {
+      "section": "objects",
+      "title": "Материально-техническое обеспечение",
+      "path": "/sveden/objects/",
+      "items": [
+        {"key":"purposeCab","title":"Назначение оборудованных учебных кабинетов","type":"itemprop","itemprop":"purposeCab","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"addressCab","title":"Адрес оборудованных учебных кабинетов","type":"itemprop","itemprop":"addressCab","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"nameCab","title":"Наименование оборудованных учебных кабинетов","type":"itemprop","itemprop":"nameCab","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"osnCab","title":"Оснащённость оборудованных учебных кабинетов","type":"itemprop","itemprop":"osnCab","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"ovzCab","title":"Приспособленность учебных кабинетов для лиц с ОВЗ","type":"itemprop","itemprop":"ovzCab","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"purposePrac","title":"Объекты для проведения практических занятий","type":"itemprop","itemprop":"purposePrac","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"purposeLibr","title":"Библиотеки","type":"itemprop","itemprop":"purposeLibr","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"purposeSport","title":"Объекты спорта","type":"itemprop","itemprop":"purposeSport","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"meals","title":"Условия питания обучающихся","type":"itemprop","itemprop":"meals","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"health","title":"Условия охраны здоровья обучающихся","type":"itemprop","itemprop":"health","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"comNet","title":"Доступ к информационным системам и сетям","type":"itemprop","itemprop":"comNet","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"comTech","title":"Электронные образовательные ресурсы","type":"itemprop","itemprop":"comTech","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"erList","title":"Список электронных образовательных ресурсов","type":"itemprop","itemprop":"erList","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"purposeEios","title":"Электронная информационно-образовательная среда","type":"itemprop","itemprop":"purposeEios","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"techOvz","title":"Специальные технические средства обучения коллективного и индивидуального пользования","type":"itemprop","itemprop":"techOvz","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "grants",
+      "title": "Стипендии и меры поддержки",
+      "path": "/sveden/grants/",
+      "items": [
+        {"key":"localAct","title":"Локальный нормативный акт о стипендиях","type":"itempropLink","itemprop":"localAct","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"grant","title":"Наличие и условия предоставления стипендий","type":"itemprop","itemprop":"grant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"support","title":"Меры социальной поддержки","type":"itemprop","itemprop":"support","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"hostelInfo","title":"Информация об общежитиях и интернатах","type":"itemprop","itemprop":"hostelInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"hostelNum","title":"Количество общежитий","type":"itemprop","itemprop":"hostelNum","parentItemprop":"hostelInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"interNum","title":"Количество интернатов","type":"itemprop","itemprop":"interNum","parentItemprop":"hostelInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"hostelPlaceNum","title":"Количество мест в общежитиях","type":"itemprop","itemprop":"hostelPlaceNum","parentItemprop":"hostelInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"interPlaceNum","title":"Количество мест в интернатах","type":"itemprop","itemprop":"interPlaceNum","parentItemprop":"hostelInfo","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"hostelFee","title":"Размер платы за проживание в общежитии","type":"itemprop","itemprop":"hostelFee","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"localActObSt","title":"Локальный акт о порядке проживания в общежитии","type":"itempropLink","itemprop":"localActObSt","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "paid_edu",
+      "title": "Платные образовательные услуги",
+      "path": "/sveden/paid_edu/",
+      "items": [
+        {"key":"paidEdu","title":"Информация о порядке оказания платных образовательных услуг","type":"itemprop","itemprop":"paidEdu","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"paidEduDocLink","title":"Порядок оказания платных образовательных услуг","type":"itempropLink","itemprop":"paidEduDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"paidDogDocLink","title":"Образец договора об оказании платных образовательных услуг","type":"itempropLink","itemprop":"paidDogDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"paidStDocLink","title":"Документ об утверждении стоимости обучения","type":"itempropLink","itemprop":"paidStDocLink","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"}
+      ]
+    },
+    {
+      "section": "budget",
+      "title": "Финансово-хозяйственная деятельность",
+      "path": "/sveden/budget/",
+      "items": [
+        {"key":"finBFVolume","title":"Объём финансового обеспечения за счёт федерального бюджета","type":"itemprop","itemprop":"finBFVolume","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"finBRVolume","title":"Объём финансового обеспечения за счёт бюджета субъекта РФ","type":"itemprop","itemprop":"finBRVolume","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"finBMVolume","title":"Объём финансового обеспечения за счёт местного бюджета","type":"itemprop","itemprop":"finBMVolume","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"finPVolume","title":"Объём финансового обеспечения по договорам о платных образовательных услугах","type":"itemprop","itemprop":"finPVolume","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"finPost","title":"Поступление финансовых и материальных средств","type":"itemprop","itemprop":"finPost","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"finRas","title":"Расходование финансовых и материальных средств","type":"itemprop","itemprop":"finRas","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"volumeFinYear","title":"Годовая бухгалтерская отчётность","type":"itempropLink","itemprop":"volumeFinYear","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "vacant",
+      "title": "Вакантные места для приёма",
+      "path": "/sveden/vacant/",
+      "items": [
+        {"key":"vacant","title":"Вакантные места для приёма или перевода","type":"itemprop","itemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduCode","title":"Код специальности, направления подготовки или профессии","type":"itemprop","itemprop":"eduCode","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduName","title":"Наименование специальности, направления подготовки или профессии","type":"itemprop","itemprop":"eduName","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduLevel","title":"Уровень образования","type":"itemprop","itemprop":"eduLevel","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"eduForm","title":"Форма обучения","type":"itemprop","itemprop":"eduForm","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"vacantBudget","title":"Вакантные места за счёт федерального бюджета","type":"itemprop","itemprop":"vacantBudget","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"vacantReg","title":"Вакантные места за счёт бюджета субъекта РФ","type":"itemprop","itemprop":"vacantReg","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"vacantMun","title":"Вакантные места за счёт местного бюджета","type":"itemprop","itemprop":"vacantMun","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"vacantPaid","title":"Вакантные места по договорам об оказании платных образовательных услуг","type":"itemprop","itemprop":"vacantPaid","parentItemprop":"vacant","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"}
+      ]
+    },
+    {
+      "section": "inter",
+      "title": "Международное сотрудничество",
+      "path": "/sveden/inter/",
+      "items": [
+        {"key":"internationalDog","title":"Информация о заключённых и планируемых договорах с иностранными организациями","type":"itemprop","itemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"stateName","title":"Наименование государства иностранной организации","type":"itemprop","itemprop":"stateName","parentItemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"orgName","title":"Наименование иностранной организации","type":"itemprop","itemprop":"orgName","parentItemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"dogReg","title":"Реквизиты договора международного сотрудничества","type":"itemprop","itemprop":"dogReg","parentItemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"dogRegDate","title":"Дата заключения договора","type":"itemprop","itemprop":"dogRegDate","parentItemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"dogRegTerm","title":"Срок действия договора","type":"itemprop","itemprop":"dogRegTerm","parentItemprop":"internationalDog","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"internationalAccr","title":"Информация о международной аккредитации образовательных программ","type":"itemprop","itemprop":"internationalAccr","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"eduName","title":"Наименование образовательной программы с международной аккредитацией","type":"itemprop","itemprop":"eduName","parentItemprop":"internationalAccr","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"orgNameAccr","title":"Наименование аккредитующей организации","type":"itemprop","itemprop":"orgName","parentItemprop":"internationalAccr","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"dateEnd","title":"Срок действия международной аккредитации","type":"itemprop","itemprop":"dateEnd","parentItemprop":"internationalAccr","required":false,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    },
+    {
+      "section": "catering",
+      "title": "Организация питания",
+      "path": "/sveden/catering/",
+      "items": [
+        {"key":"meals","title":"Условия питания обучающихся","type":"itemprop","itemprop":"meals","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"error"},
+        {"key":"objName","title":"Наименование объекта питания","type":"itemprop","itemprop":"objName","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"objAddress","title":"Адрес объекта питания","type":"itemprop","itemprop":"objAddress","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"objSq","title":"Площадь объекта питания","type":"itemprop","itemprop":"objSq","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"objCnt","title":"Количество мест объекта питания","type":"itemprop","itemprop":"objCnt","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"objOvz","title":"Приспособленность объекта питания для лиц с ОВЗ","type":"itemprop","itemprop":"objOvz","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"},
+        {"key":"health","title":"Условия охраны здоровья обучающихся","type":"itemprop","itemprop":"health","required":true,"legalSourceId":"rosobrnadzor-1493","severity":"warning"}
+      ]
+    }
+  ]
+}

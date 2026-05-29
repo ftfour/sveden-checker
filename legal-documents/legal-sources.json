@@ -1,0 +1,110 @@
+[
+  {
+    "id": "fz-273-art-29",
+    "title": "Федеральный закон от 29.12.2012 № 273-ФЗ «Об образовании в Российской Федерации»",
+    "shortTitle": "273-ФЗ, статья 29",
+    "type": "federal_law",
+    "archiveFile": "01_fz-273/README_fz-273_links.md",
+    "officialUrl": "https://publication.pravo.gov.ru/document/0001201212300007",
+    "usedFor": [
+      "official_site_obligation",
+      "information_disclosure"
+    ]
+  },
+  {
+    "id": "pp-rf-1802",
+    "title": "Постановление Правительства РФ от 20.10.2021 № 1802",
+    "shortTitle": "ПП РФ № 1802",
+    "type": "government_decree",
+    "archiveFile": "02_pp-rf-1802/pp-rf-1802_rules-official-site.pdf",
+    "officialUrl": "http://publication.pravo.gov.ru/Document/View/0001202110220045",
+    "usedFor": [
+      "official_site_rules",
+      "information_content",
+      "update_rules"
+    ]
+  },
+  {
+    "id": "rosobrnadzor-1493",
+    "title": "Приказ Рособрнадзора от 04.08.2023 № 1493",
+    "shortTitle": "Приказ № 1493",
+    "type": "order",
+    "archiveFile": "03_rosobrnadzor-1493/prikaz-rosobrnadzor-1493_sveden-structure.pdf",
+    "officialUrl": "https://publication.pravo.gov.ru/document/0001202311290017",
+    "usedFor": [
+      "sveden_structure",
+      "subsections",
+      "html_markup",
+      "itemprop"
+    ]
+  },
+  {
+    "id": "rosobrnadzor-1353",
+    "title": "Приказ Рособрнадзора от 03.07.2025 № 1353",
+    "shortTitle": "Приказ № 1353",
+    "type": "amending_order",
+    "archiveFile": "04_rosobrnadzor-1353/prikaz-rosobrnadzor-1353_changes-to-1493.pdf",
+    "officialUrl": "https://publication.pravo.gov.ru/document/0001202510140008",
+    "usedFor": [
+      "changes_to_1493",
+      "rules_actual_from_2026_03_01"
+    ]
+  },
+  {
+    "id": "rosobrnadzor-955-app-27",
+    "title": "Приказ Рособрнадзора от 02.05.2024 № 955, приложение № 27",
+    "shortTitle": "Проверочный лист, приказ № 955",
+    "type": "checklist",
+    "archiveFile": "05_rosobrnadzor-955/prikaz-rosobrnadzor-955_checklists.pdf",
+    "sourceUrl": "https://rg.ru/documents/2024/08/05/rosobrnadzor-prikaz955-site-dok.html",
+    "usedFor": [
+      "control_questions",
+      "report_structure"
+    ]
+  },
+  {
+    "id": "methodical-recommendations-v9",
+    "title": "Методические рекомендации представления информации об образовательной организации в открытых источниках, версия 9.0.0",
+    "shortTitle": "Методические рекомендации v9.0.0",
+    "type": "methodical_recommendations",
+    "archiveFile": "06_methodical-recommendations/metodicheskie-rekomendaczii-2025-v9.pdf",
+    "sourceUrl": "https://rosobrcontrol.ru/documents/metodicheskie-rekomendatsii/metodicheskie-rekomendatsii-2025/",
+    "usedFor": [
+      "itemprop_reference",
+      "html_examples",
+      "practical_rules"
+    ]
+  },
+  {
+    "id": "rosobrnadzor-clarifications-2024-11-11",
+    "title": "Официальные разъяснения Рособрнадзора по вопросам информационной открытости от 11.11.2024",
+    "shortTitle": "Разъяснения Рособрнадзора 11.11.2024",
+    "type": "official_clarification",
+    "archiveFile": "07_official-clarifications/official-clarifications-rosobrnadzor-2024-11-11.pdf",
+    "usedFor": [
+      "interpretation",
+      "explanatory_notes"
+    ]
+  },
+  {
+    "id": "pp-rf-102-accessibility",
+    "title": "Постановление Правительства РФ от 07.02.2026 № 102",
+    "shortTitle": "ПП РФ № 102",
+    "type": "government_decree",
+    "archiveFile": "08_accessibility/pp-rf-102-accessibility.pdf",
+    "officialUrl": "https://publication.pravo.gov.ru/document/0001202602100010",
+    "usedFor": [
+      "accessibility_for_visually_impaired"
+    ]
+  },
+  {
+    "id": "gost-r-52872-2019",
+    "title": "ГОСТ Р 52872-2019",
+    "shortTitle": "ГОСТ Р 52872-2019",
+    "type": "national_standard",
+    "archiveFile": "09_gost/README_gost_links.md",
+    "usedFor": [
+      "accessibility_reference"
+    ]
+  }
+]
