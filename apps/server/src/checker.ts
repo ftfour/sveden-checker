@@ -22,6 +22,20 @@ type FetchResult =
       error: string;
     };
 
+export type CheckSvedenOptions = {
+  pageTimeoutMs?: number;
+  resourceTimeoutMs?: number;
+  maxAddRefPages?: number;
+  checkResourceLinks?: boolean;
+};
+
+const defaultCheckOptions: Required<CheckSvedenOptions> = {
+  pageTimeoutMs: 12000,
+  resourceTimeoutMs: 9000,
+  maxAddRefPages: 10,
+  checkResourceLinks: true
+};
+
 const mainSvedenSections: PageCheckSection[] = [
   { id: "common", title: "Основные сведения", path: "/sveden/common/" },
   { id: "struct", title: "Структура и органы управления", path: "/sveden/struct/" },
@@ -39,16 +53,17 @@ const mainSvedenSections: PageCheckSection[] = [
   { id: "catering", title: "Организация питания", path: "/sveden/catering/" }
 ];
 
-export async function checkSvedenSite(rawUrl: string): Promise<CheckReport> {
+export async function checkSvedenSite(rawUrl: string, options: CheckSvedenOptions = {}): Promise<CheckReport> {
+  const resolvedOptions = { ...defaultCheckOptions, ...options };
   const siteUrl = normalizeSiteUrl(rawUrl);
   const ruleset = getSvedenItempropRuleset();
   const rulesBySection = new Map(ruleset.sections.map((section) => [section.section, section]));
   const legalSourcesById = new Map(getLegalSources().map((source) => [source.id, source]));
 
-  await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"));
+  await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"), resolvedOptions.pageTimeoutMs);
 
   const sections = await Promise.all(
-    mainSvedenSections.map((section) => checkSection(siteUrl, section, rulesBySection.get(section.id)))
+    mainSvedenSections.map((section) => checkSection(siteUrl, section, rulesBySection.get(section.id), resolvedOptions))
   );
   const sectionsWithLegalReferences = sections.map((section) => attachLegalReferences(section, legalSourcesById));
 
@@ -81,9 +96,10 @@ export function normalizeSiteUrl(rawUrl: string): string {
 async function checkSection(
   siteUrl: string,
   pageSection: PageCheckSection,
-  ruleSection: SvedenRuleSection | undefined
+  ruleSection: SvedenRuleSection | undefined,
+  options: Required<CheckSvedenOptions>
 ): Promise<CheckReportSection> {
-  const pageResult = await fetchSectionPage(siteUrl, pageSection);
+  const pageResult = await fetchSectionPage(siteUrl, pageSection, options);
   const url = pageResult.url;
   const fetchResult = pageResult.fetchResult;
   const rules = ruleSection?.items ?? [];
@@ -116,9 +132,9 @@ async function checkSection(
     };
   }
 
-  const additionalHtml = await fetchAdditionalPages(url, fetchResult.html);
+  const additionalHtml = await fetchAdditionalPages(url, fetchResult.html, options);
   const $ = cheerio.load([fetchResult.html, ...additionalHtml].join("\n"));
-  const items = await Promise.all(rules.map((rule) => checkRule($, rule, url)));
+  const items = await Promise.all(rules.map((rule) => checkRule($, rule, url, options)));
 
   return {
     id: pageSection.id,
@@ -137,13 +153,17 @@ async function checkSection(
   };
 }
 
-async function fetchSectionPage(siteUrl: string, pageSection: PageCheckSection): Promise<{ url: string; fetchResult: FetchResult }> {
+async function fetchSectionPage(
+  siteUrl: string,
+  pageSection: PageCheckSection,
+  options: Required<CheckSvedenOptions>
+): Promise<{ url: string; fetchResult: FetchResult }> {
   const paths = [pageSection.path, ...(pageSection.fallbackPaths ?? [])];
   let lastResult: { url: string; fetchResult: FetchResult } | null = null;
 
   for (const path of paths) {
     const url = buildSectionUrl(siteUrl, path);
-    const fetchResult = await fetchHtml(url);
+    const fetchResult = await fetchHtml(url, options.pageTimeoutMs);
     lastResult = { url, fetchResult };
 
     if (fetchResult.ok) {
@@ -154,9 +174,9 @@ async function fetchSectionPage(siteUrl: string, pageSection: PageCheckSection):
   return lastResult ?? { url: buildSectionUrl(siteUrl, pageSection.path), fetchResult: { ok: false, error: "страница не найдена" } };
 }
 
-async function fetchHtml(url: string): Promise<FetchResult> {
+async function fetchHtml(url: string, timeoutMs: number): Promise<FetchResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -194,7 +214,8 @@ async function fetchHtml(url: string): Promise<FetchResult> {
 async function checkRule(
   $: cheerio.CheerioAPI,
   rule: SvedenRuleSection["items"][number],
-  pageUrl: string
+  pageUrl: string,
+  options: Required<CheckSvedenOptions>
 ): Promise<CheckResultItem> {
   const elements = findRuleElements($, rule);
 
@@ -246,7 +267,7 @@ async function checkRule(
   const joinedValue = filledValues.join("; ");
 
   if (rule.type === "itempropLink") {
-    return await checkItempropLink($, elements, rule, pageUrl, joinedValue);
+    return await checkItempropLink($, elements, rule, pageUrl, joinedValue, options);
   }
 
   if (filledValues.length < values.length) {
@@ -283,7 +304,8 @@ async function checkItempropLink(
   elements: CheerioElement[],
   rule: SvedenRuleSection["items"][number],
   pageUrl: string,
-  joinedValue: string
+  joinedValue: string,
+  options: Required<CheckSvedenOptions>
 ): Promise<CheckResultItem> {
   const links = elements
     .map((element) => extractElementUrl($, element, pageUrl))
@@ -304,7 +326,22 @@ async function checkItempropLink(
     };
   }
 
-  const checks = await Promise.all(links.slice(0, 3).map((link) => checkResource(link)));
+  if (!options.checkResourceLinks) {
+    return {
+      key: rule.key,
+      title: rule.title,
+      itemprop: rule.itemprop,
+      ruleType: rule.type,
+      status: "found",
+      score: 1,
+      message: "Пункт найден, ссылка указана",
+      value: truncateValue(links.join("; ")),
+      legalSourceId: rule.legalSourceId,
+      severity: rule.severity
+    };
+  }
+
+  const checks = await Promise.all(links.slice(0, 3).map((link) => checkResource(link, options)));
   const available = checks.filter((check) => check.ok);
 
   if (available.length === 0) {
@@ -383,33 +420,33 @@ function extractElementUrl($: cheerio.CheerioAPI, element: CheerioElement, pageU
   }
 }
 
-async function fetchAdditionalPages(pageUrl: string, html: string): Promise<string[]> {
+async function fetchAdditionalPages(pageUrl: string, html: string, options: Required<CheckSvedenOptions>): Promise<string[]> {
   const $ = cheerio.load(html);
   const addRefUrls = $('a[itemprop~="addRef"][href], [itemprop~="addRef"] a[href]')
     .toArray()
     .map((element) => extractElementUrl($, element, pageUrl))
     .filter((value): value is string => Boolean(value))
-    .slice(0, 10);
+    .slice(0, options.maxAddRefPages);
 
   const uniqueUrls = [...new Set(addRefUrls)];
-  const results = await Promise.all(uniqueUrls.map((url) => fetchHtml(url)));
+  const results = await Promise.all(uniqueUrls.map((url) => fetchHtml(url, options.pageTimeoutMs)));
 
   return results.flatMap((result) => (result.ok ? [result.html] : []));
 }
 
-async function checkResource(url: string): Promise<{ ok: boolean; message: string }> {
-  const headResult = await fetchResource(url, "HEAD");
+async function checkResource(url: string, options: Required<CheckSvedenOptions>): Promise<{ ok: boolean; message: string }> {
+  const headResult = await fetchResource(url, "HEAD", options.resourceTimeoutMs);
 
   if (headResult.ok || headResult.statusCode === 405 || headResult.statusCode === 403) {
-    return headResult.ok ? headResult : await fetchResource(url, "GET");
+    return headResult.ok ? headResult : await fetchResource(url, "GET", options.resourceTimeoutMs);
   }
 
   return headResult;
 }
 
-async function fetchResource(url: string, method: "HEAD" | "GET"): Promise<{ ok: boolean; statusCode?: number; message: string }> {
+async function fetchResource(url: string, method: "HEAD" | "GET", timeoutMs: number): Promise<{ ok: boolean; statusCode?: number; message: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {

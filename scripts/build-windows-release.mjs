@@ -32,6 +32,7 @@ await build({
 
 await cp(join(root, "apps", "web", "dist"), join(distRoot, "public"), { recursive: true });
 await cp(join(root, "legal-documents"), join(distRoot, "legal-documents"), { recursive: true });
+await cp(join(root, "site-lists"), join(distRoot, "site-lists"), { recursive: true });
 await copyFile(
   join(root, "packages", "rulesets", "src", "sveden-itemprop-ruleset.json"),
   join(appRoot, "sveden-itemprop-ruleset.json")

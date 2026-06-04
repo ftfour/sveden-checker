@@ -221,6 +221,37 @@ export function createSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_check_results_run_id ON check_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_check_results_legal_source_id ON check_results(legal_source_id);
+
+    CREATE TABLE IF NOT EXISTS rating_runs (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT,
+      status TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rating_results (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      site_url TEXT NOT NULL,
+      normalized_url TEXT,
+      status TEXT NOT NULL,
+      score INTEGER,
+      checked_at TEXT,
+      duration_ms INTEGER,
+      error TEXT,
+      summary_json TEXT,
+      report_json TEXT,
+      FOREIGN KEY (run_id) REFERENCES rating_runs(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rating_results_run_id ON rating_results(run_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_rating_results_run_position ON rating_results(run_id, position);
+    CREATE INDEX IF NOT EXISTS idx_rating_results_run_score ON rating_results(run_id, score DESC);
   `);
 }
 

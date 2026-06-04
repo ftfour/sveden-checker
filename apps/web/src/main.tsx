@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowLeft,
+  BarChart3,
   BookOpen,
   CheckCircle2,
   Clipboard,
@@ -13,9 +14,12 @@ import {
   FileCheck2,
   LoaderCircle,
   MonitorCheck,
+  PauseCircle,
   PlayCircle,
+  RotateCcw,
   Search,
   ShieldCheck,
+  Trophy,
   Wrench,
   XCircle
 } from "lucide-react";
@@ -82,6 +86,41 @@ type CheckReport = {
   overallScore: number;
   summary: CheckSummary;
   sections: CheckReportSection[];
+};
+
+type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "error";
+
+type RatingSiteStatus = "pending" | "running" | "checked" | "error";
+
+type RatingResult = {
+  id: string;
+  runId: string;
+  position: number;
+  siteUrl: string;
+  normalizedUrl: string | null;
+  status: RatingSiteStatus;
+  score: number | null;
+  checkedAt: string | null;
+  durationMs: number | null;
+  error: string | null;
+  summary: CheckSummary | null;
+};
+
+type RatingRunDetails = {
+  id: string;
+  title: string;
+  sourceName: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  status: RatingRunStatus;
+  total: number;
+  checked: number;
+  failed: number;
+  pending: number;
+  averageScore: number | null;
+  updatedAt: string;
+  results: RatingResult[];
 };
 
 type RecommendationPriority = "high" | "medium" | "low";
@@ -184,6 +223,10 @@ function App() {
     return <RecommendationsPage report={lastReport ?? readStoredReport()} navigate={navigate} />;
   }
 
+  if (path === "/rating") {
+    return <RatingPage navigate={navigate} />;
+  }
+
   return <HomePage />;
 }
 
@@ -204,6 +247,10 @@ function HomePage() {
             <a className="button button--primary" href="/check">
               <PlayCircle size={20} aria-hidden="true" />
               Начать проверку
+            </a>
+            <a className="button" href="/rating">
+              <BarChart3 size={20} aria-hidden="true" />
+              Рейтинг сайтов
             </a>
             <a className="button" href="#ais">
               <MonitorCheck size={20} aria-hidden="true" />
@@ -444,6 +491,17 @@ function CheckPage({
             <Wrench size={18} aria-hidden="true" />
             Рекомендации по исправлениям
           </a>
+          <a
+            className="back-link"
+            href="/rating"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("/rating");
+            }}
+          >
+            <BarChart3 size={18} aria-hidden="true" />
+            Рейтинг сайтов
+          </a>
           <div>
             <p className="eyebrow">Локальная проверка сайта</p>
             <h1>Проверка раздела «Сведения об образовательной организации»</h1>
@@ -578,6 +636,258 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
         ))}
       </div>
     </div>
+  );
+}
+
+function RatingPage({ navigate }: { navigate: (path: string) => void }) {
+  const [run, setRun] = React.useState<RatingRunDetails | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isActionLoading, setIsActionLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = React.useState<"all" | RatingSiteStatus>("all");
+  const [query, setQuery] = React.useState("");
+
+  const isRunning = run?.status === "running";
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function load() {
+      try {
+        const nextRun = await fetchLatestRatingRun();
+        if (isMounted) {
+          setRun(nextRun);
+          setError(null);
+        }
+      } catch (caughtError) {
+        if (isMounted) {
+          setError(caughtError instanceof Error ? caughtError.message : "Не удалось загрузить рейтинг");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void load();
+    const interval = window.setInterval(() => void load(), isRunning ? 3500 : 9000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [isRunning]);
+
+  async function handleStart(reset = false) {
+    setIsActionLoading(true);
+    setError(null);
+
+    try {
+      const nextRun = await postRatingAction("/api/rating-runs/start", { reset });
+      setRun(nextRun);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Не удалось запустить рейтинг");
+    } finally {
+      setIsActionLoading(false);
+    }
+  }
+
+  async function handlePause() {
+    setIsActionLoading(true);
+    setError(null);
+
+    try {
+      const nextRun = await postRatingAction("/api/rating-runs/pause");
+      setRun(nextRun);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Не удалось поставить рейтинг на паузу");
+    } finally {
+      setIsActionLoading(false);
+    }
+  }
+
+  const progressPercent = run && run.total > 0 ? Math.round(((run.checked + run.failed) / run.total) * 100) : 0;
+  const filteredResults = (run?.results ?? []).filter((result) => {
+    const matchesStatus = statusFilter === "all" || result.status === statusFilter;
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery =
+      normalizedQuery.length === 0 ||
+      result.siteUrl.toLowerCase().includes(normalizedQuery) ||
+      (result.normalizedUrl?.toLowerCase().includes(normalizedQuery) ?? false);
+
+    return matchesStatus && matchesQuery;
+  });
+
+  return (
+    <main className="checker-page">
+      <section className="checker-hero">
+        <div className="checker-hero__content">
+          <div className="top-links">
+            <a
+              className="back-link"
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/");
+              }}
+            >
+              <ArrowLeft size={18} aria-hidden="true" />
+              На главную
+            </a>
+            <a
+              className="back-link"
+              href="/check"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/check");
+              }}
+            >
+              <Search size={18} aria-hidden="true" />
+              Локальная проверка сайта
+            </a>
+          </div>
+          <div>
+            <p className="eyebrow">Массовая проверка</p>
+            <h1>Рейтинг сайтов образовательных организаций</h1>
+            <p className="hero__lead">
+              Проверка выполняется локально по списку `obr-sites.txt`. Каждый сайт сохраняется в SQLite сразу после
+              обработки, поэтому прогон можно поставить на паузу и продолжить позже с первого незавершённого адреса.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="section rating-page">
+        {isLoading && <div className="loading-card">Загружаем состояние рейтинга...</div>}
+        {error && (
+          <div className="error-card">
+            <XCircle size={24} aria-hidden="true" />
+            {error}
+          </div>
+        )}
+
+        <div className="rating-actions">
+          <button className="action-button" disabled={isActionLoading || isRunning} onClick={() => void handleStart(false)} type="button">
+            {isActionLoading && !isRunning ? <LoaderCircle className="spin" size={18} aria-hidden="true" /> : <PlayCircle size={18} aria-hidden="true" />}
+            {run ? "Продолжить проверку" : "Начать рейтинг"}
+          </button>
+          <button className="secondary-action" disabled={isActionLoading || !isRunning} onClick={() => void handlePause()} type="button">
+            <PauseCircle size={18} aria-hidden="true" />
+            Пауза
+          </button>
+          <button className="secondary-action" disabled={isActionLoading || isRunning} onClick={() => void handleStart(true)} type="button">
+            <RotateCcw size={18} aria-hidden="true" />
+            Новый запуск
+          </button>
+        </div>
+
+        {run ? (
+          <>
+            <div className="rating-summary">
+              <div>
+                <p className="eyebrow">{ratingStatusLabel(run.status)}</p>
+                <h2>{run.title}</h2>
+                <p>
+                  Список: {run.sourceName}. Создан: {new Date(run.createdAt).toLocaleString("ru-RU")}.
+                  <br />
+                  Последнее обновление: {new Date(run.updatedAt).toLocaleString("ru-RU")}.
+                </p>
+              </div>
+              <div className="score-ring" aria-label={`Прогресс рейтинга ${progressPercent}%`}>
+                {progressPercent}%
+              </div>
+            </div>
+
+            <div className="summary-strip">
+              <SummaryBadge label="Всего сайтов" value={run.total} />
+              <SummaryBadge label="Проверено" value={run.checked} tone="found" />
+              <SummaryBadge label="Ошибки" value={run.failed} tone="missing" />
+              <SummaryBadge label="Осталось" value={run.pending} tone="partial" />
+              <SummaryBadge label="Средний балл" value={run.averageScore ?? 0} />
+            </div>
+
+            <div className="rating-progress" aria-label={`Проверено ${progressPercent}%`}>
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+
+            <div className="rating-tools">
+              <label>
+                Поиск сайта
+                <input
+                  placeholder="Например, school или obr.sakha.gov.ru"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              <div className="recommendation-filters" aria-label="Фильтр статуса сайтов">
+                {ratingFilters.map((filter) => (
+                  <button
+                    className={statusFilter === filter.value ? "filter-button filter-button--active" : "filter-button"}
+                    key={filter.value}
+                    onClick={() => setStatusFilter(filter.value)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rating-table-card">
+              <div className="rating-table-card__header">
+                <div>
+                  <p className="eyebrow">Результаты</p>
+                  <h2>{filteredResults.length} сайтов</h2>
+                </div>
+                <Trophy size={28} aria-hidden="true" />
+              </div>
+              <div className="rating-table-wrap">
+                <table className="rating-table">
+                  <thead>
+                    <tr>
+                      <th>Место</th>
+                      <th>Сайт</th>
+                      <th>Готовность</th>
+                      <th>Статус</th>
+                      <th>Дата</th>
+                      <th>Сводка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResults.map((result, index) => (
+                      <tr key={result.id}>
+                        <td>{result.score === null ? "-" : index + 1}</td>
+                        <td>
+                          <a href={result.normalizedUrl ?? result.siteUrl} rel="noreferrer" target="_blank">
+                            {result.normalizedUrl ?? result.siteUrl}
+                          </a>
+                          {result.error && <small>{result.error}</small>}
+                        </td>
+                        <td>
+                          <strong>{result.score === null ? "-" : `${result.score}%`}</strong>
+                        </td>
+                        <td>
+                          <span className={`rating-status rating-status--${result.status}`}>{ratingSiteStatusLabel(result.status)}</span>
+                        </td>
+                        <td>{result.checkedAt ? new Date(result.checkedAt).toLocaleString("ru-RU") : "-"}</td>
+                        <td>{result.summary ? ratingSummaryText(result.summary) : "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          !isLoading && (
+            <div className="loading-card">
+              Рейтинг ещё не запускался. Нажмите «Начать рейтинг», чтобы создать проверку по списку сайтов.
+            </div>
+          )
+        )}
+      </section>
+    </main>
   );
 }
 
@@ -858,6 +1168,68 @@ const recommendationFilters: Array<{ label: string; value: RecommendationFilter 
   { label: "Только пустые", value: "empty" },
   { label: "Только ошибки загрузки", value: "error" }
 ];
+
+const ratingFilters: Array<{ label: string; value: "all" | RatingSiteStatus }> = [
+  { label: "Все", value: "all" },
+  { label: "Проверено", value: "checked" },
+  { label: "Ошибки", value: "error" },
+  { label: "В очереди", value: "pending" },
+  { label: "Сейчас проверяется", value: "running" }
+];
+
+async function fetchLatestRatingRun(): Promise<RatingRunDetails | null> {
+  const response = await fetch("/api/rating-runs/latest");
+
+  if (!response.ok) {
+    throw new Error("Не удалось получить состояние рейтинга");
+  }
+
+  return (await response.json()) as RatingRunDetails | null;
+}
+
+async function postRatingAction(path: string, body?: unknown): Promise<RatingRunDetails | null> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? "Не удалось выполнить действие");
+  }
+
+  return payload as RatingRunDetails | null;
+}
+
+function ratingStatusLabel(status: RatingRunStatus): string {
+  const labels: Record<RatingRunStatus, string> = {
+    completed: "завершено",
+    error: "ошибка",
+    idle: "ожидает запуска",
+    paused: "на паузе",
+    running: "выполняется"
+  };
+
+  return labels[status];
+}
+
+function ratingSiteStatusLabel(status: RatingSiteStatus): string {
+  const labels: Record<RatingSiteStatus, string> = {
+    checked: "проверено",
+    error: "ошибка",
+    pending: "в очереди",
+    running: "проверяется"
+  };
+
+  return labels[status];
+}
+
+function ratingSummaryText(summary: CheckSummary): string {
+  return `найдено ${summary.found}, частично ${summary.partial}, нет ${summary.missing}, ошибок ${summary.errors}`;
+}
 
 function buildRecommendations(report: CheckReport): Recommendation[] {
   return report.sections.flatMap((section) =>

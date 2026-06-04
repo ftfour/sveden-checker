@@ -2,14 +2,16 @@ import Fastify from "fastify";
 import { access, readFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { findWorkspaceRoot, getLegalSources, openDatabase } from "@sveden-checker/database";
-import type { CheckReport, CheckRequest, ProjectInfo } from "@sveden-checker/shared";
+import type { CheckReport, CheckRequest, ProjectInfo, RatingRunDetails, RatingStartRequest } from "@sveden-checker/shared";
 import { checkSvedenSite } from "./checker.js";
+import { getLatestRatingRun, getRatingRunDetails, initializeRatingManager, pauseRatingRun, startRatingRun } from "./rating.js";
 
 const app = Fastify({
   logger: true
 });
 
 openDatabase();
+initializeRatingManager();
 
 app.get("/api/health", async () => ({
   status: "ok",
@@ -56,7 +58,7 @@ app.get<{ Params: { id: string } }>("/api/legal-sources/:id/file", async (reques
 
 app.get("/api/project-info", async (): Promise<ProjectInfo> => ({
   name: "Sveden Checker",
-  version: "0.1.2",
+  version: "0.1.3",
   purpose:
     "Локальное веб-приложение для предварительной самопроверки раздела «Сведения об образовательной организации» на сайте образовательной организации.",
   warning:
@@ -83,6 +85,27 @@ app.post<{ Body: CheckRequest }>("/api/check", async (request, reply): Promise<C
     }) as never;
   }
 });
+
+app.get("/api/rating-runs/latest", async (): Promise<RatingRunDetails | null> => getLatestRatingRun());
+
+app.get<{ Params: { id: string } }>("/api/rating-runs/:id", async (request, reply): Promise<RatingRunDetails> => {
+  const details = getRatingRunDetails(request.params.id);
+
+  if (!details) {
+    return reply.status(404).send({
+      error: "rating_run_not_found",
+      message: "Запуск рейтинга не найден"
+    }) as never;
+  }
+
+  return details;
+});
+
+app.post<{ Body: RatingStartRequest }>("/api/rating-runs/start", async (request): Promise<RatingRunDetails> => {
+  return startRatingRun(request.body ?? {});
+});
+
+app.post("/api/rating-runs/pause", async (): Promise<RatingRunDetails | null> => pauseRatingRun());
 
 app.setNotFoundHandler(async (request, reply) => {
   if (request.url.startsWith("/api/")) {

@@ -80,3 +80,46 @@ export type CheckReport = {
   summary: CheckSummary;
   sections: CheckReportSection[];
 };
+
+export type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "error";
+
+export type RatingSiteStatus = "pending" | "running" | "checked" | "error";
+
+export type RatingRun = {
+  id: string;
+  title: string;
+  sourceName: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  status: RatingRunStatus;
+  total: number;
+  checked: number;
+  failed: number;
+  pending: number;
+  averageScore: number | null;
+  updatedAt: string;
+};
+
+export type RatingResult = {
+  id: string;
+  runId: string;
+  position: number;
+  siteUrl: string;
+  normalizedUrl: string | null;
+  status: RatingSiteStatus;
+  score: number | null;
+  checkedAt: string | null;
+  durationMs: number | null;
+  error: string | null;
+  summary: CheckSummary | null;
+};
+
+export type RatingRunDetails = RatingRun & {
+  results: RatingResult[];
+};
+
+export type RatingStartRequest = {
+  reset?: boolean;
+  title?: string;
+};
