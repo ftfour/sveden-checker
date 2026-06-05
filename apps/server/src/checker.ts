@@ -27,9 +27,14 @@ export type CheckSvedenOptions = {
   resourceTimeoutMs?: number;
   maxAddRefPages?: number;
   checkResourceLinks?: boolean;
+  signal?: AbortSignal;
 };
 
-const defaultCheckOptions: Required<CheckSvedenOptions> = {
+type ResolvedCheckSvedenOptions = Required<Omit<CheckSvedenOptions, "signal">> & {
+  signal?: AbortSignal;
+};
+
+const defaultCheckOptions: Required<Omit<CheckSvedenOptions, "signal">> = {
   pageTimeoutMs: 12000,
   resourceTimeoutMs: 9000,
   maxAddRefPages: 10,
@@ -54,13 +59,14 @@ const mainSvedenSections: PageCheckSection[] = [
 ];
 
 export async function checkSvedenSite(rawUrl: string, options: CheckSvedenOptions = {}): Promise<CheckReport> {
-  const resolvedOptions = { ...defaultCheckOptions, ...options };
+  const resolvedOptions: ResolvedCheckSvedenOptions = { ...defaultCheckOptions, ...options };
+  throwIfAborted(resolvedOptions);
   const siteUrl = normalizeSiteUrl(rawUrl);
   const ruleset = getSvedenItempropRuleset();
   const rulesBySection = new Map(ruleset.sections.map((section) => [section.section, section]));
   const legalSourcesById = new Map(getLegalSources().map((source) => [source.id, source]));
 
-  await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"), resolvedOptions.pageTimeoutMs);
+  await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"), resolvedOptions.pageTimeoutMs, resolvedOptions.signal);
 
   const sections = await Promise.all(
     mainSvedenSections.map((section) => checkSection(siteUrl, section, rulesBySection.get(section.id), resolvedOptions))
@@ -97,8 +103,9 @@ async function checkSection(
   siteUrl: string,
   pageSection: PageCheckSection,
   ruleSection: SvedenRuleSection | undefined,
-  options: Required<CheckSvedenOptions>
+  options: ResolvedCheckSvedenOptions
 ): Promise<CheckReportSection> {
+  throwIfAborted(options);
   const pageResult = await fetchSectionPage(siteUrl, pageSection, options);
   const url = pageResult.url;
   const fetchResult = pageResult.fetchResult;
@@ -156,14 +163,14 @@ async function checkSection(
 async function fetchSectionPage(
   siteUrl: string,
   pageSection: PageCheckSection,
-  options: Required<CheckSvedenOptions>
+  options: ResolvedCheckSvedenOptions
 ): Promise<{ url: string; fetchResult: FetchResult }> {
   const paths = [pageSection.path, ...(pageSection.fallbackPaths ?? [])];
   let lastResult: { url: string; fetchResult: FetchResult } | null = null;
 
   for (const path of paths) {
     const url = buildSectionUrl(siteUrl, path);
-    const fetchResult = await fetchHtml(url, options.pageTimeoutMs);
+    const fetchResult = await fetchHtml(url, options.pageTimeoutMs, options.signal);
     lastResult = { url, fetchResult };
 
     if (fetchResult.ok) {
@@ -174,9 +181,11 @@ async function fetchSectionPage(
   return lastResult ?? { url: buildSectionUrl(siteUrl, pageSection.path), fetchResult: { ok: false, error: "страница не найдена" } };
 }
 
-async function fetchHtml(url: string, timeoutMs: number): Promise<FetchResult> {
+async function fetchHtml(url: string, timeoutMs: number, signal?: AbortSignal): Promise<FetchResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
 
   try {
     const response = await fetch(url, {
@@ -202,12 +211,17 @@ async function fetchHtml(url: string, timeoutMs: number): Promise<FetchResult> {
       statusCode: response.status
     };
   } catch (error) {
+    if (signal?.aborted) {
+      throw new Error("Проверка остановлена пользователем");
+    }
+
     return {
       ok: false,
       error: error instanceof Error && error.name === "AbortError" ? "таймаут запроса" : getErrorMessage(error)
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 }
 
@@ -215,7 +229,7 @@ async function checkRule(
   $: cheerio.CheerioAPI,
   rule: SvedenRuleSection["items"][number],
   pageUrl: string,
-  options: Required<CheckSvedenOptions>
+  options: ResolvedCheckSvedenOptions
 ): Promise<CheckResultItem> {
   const elements = findRuleElements($, rule);
 
@@ -305,7 +319,7 @@ async function checkItempropLink(
   rule: SvedenRuleSection["items"][number],
   pageUrl: string,
   joinedValue: string,
-  options: Required<CheckSvedenOptions>
+  options: ResolvedCheckSvedenOptions
 ): Promise<CheckResultItem> {
   const links = elements
     .map((element) => extractElementUrl($, element, pageUrl))
@@ -420,7 +434,7 @@ function extractElementUrl($: cheerio.CheerioAPI, element: CheerioElement, pageU
   }
 }
 
-async function fetchAdditionalPages(pageUrl: string, html: string, options: Required<CheckSvedenOptions>): Promise<string[]> {
+async function fetchAdditionalPages(pageUrl: string, html: string, options: ResolvedCheckSvedenOptions): Promise<string[]> {
   const $ = cheerio.load(html);
   const addRefUrls = $('a[itemprop~="addRef"][href], [itemprop~="addRef"] a[href]')
     .toArray()
@@ -429,24 +443,31 @@ async function fetchAdditionalPages(pageUrl: string, html: string, options: Requ
     .slice(0, options.maxAddRefPages);
 
   const uniqueUrls = [...new Set(addRefUrls)];
-  const results = await Promise.all(uniqueUrls.map((url) => fetchHtml(url, options.pageTimeoutMs)));
+  const results = await Promise.all(uniqueUrls.map((url) => fetchHtml(url, options.pageTimeoutMs, options.signal)));
 
   return results.flatMap((result) => (result.ok ? [result.html] : []));
 }
 
-async function checkResource(url: string, options: Required<CheckSvedenOptions>): Promise<{ ok: boolean; message: string }> {
-  const headResult = await fetchResource(url, "HEAD", options.resourceTimeoutMs);
+async function checkResource(url: string, options: ResolvedCheckSvedenOptions): Promise<{ ok: boolean; message: string }> {
+  const headResult = await fetchResource(url, "HEAD", options.resourceTimeoutMs, options.signal);
 
   if (headResult.ok || headResult.statusCode === 405 || headResult.statusCode === 403) {
-    return headResult.ok ? headResult : await fetchResource(url, "GET", options.resourceTimeoutMs);
+    return headResult.ok ? headResult : await fetchResource(url, "GET", options.resourceTimeoutMs, options.signal);
   }
 
   return headResult;
 }
 
-async function fetchResource(url: string, method: "HEAD" | "GET", timeoutMs: number): Promise<{ ok: boolean; statusCode?: number; message: string }> {
+async function fetchResource(
+  url: string,
+  method: "HEAD" | "GET",
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<{ ok: boolean; statusCode?: number; message: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
 
   try {
     const response = await fetch(url, {
@@ -466,12 +487,17 @@ async function fetchResource(url: string, method: "HEAD" | "GET", timeoutMs: num
       message: response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}`
     };
   } catch (error) {
+    if (signal?.aborted) {
+      throw new Error("Проверка остановлена пользователем");
+    }
+
     return {
       ok: false,
       message: error instanceof Error && error.name === "AbortError" ? "таймаут запроса" : getErrorMessage(error)
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 }
 
@@ -596,4 +622,10 @@ function escapeCssAttribute(value: string): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "неизвестная ошибка";
+}
+
+function throwIfAborted(options: Pick<CheckSvedenOptions, "signal">): void {
+  if (options.signal?.aborted) {
+    throw new Error("Проверка остановлена пользователем");
+  }
 }

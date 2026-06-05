@@ -226,10 +226,13 @@ export function createSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       source_name TEXT NOT NULL,
+      site_list_id TEXT,
+      settings_json TEXT,
       created_at TEXT NOT NULL,
       started_at TEXT,
       finished_at TEXT,
       status TEXT NOT NULL,
+      error TEXT,
       updated_at TEXT NOT NULL
     );
 
@@ -252,7 +255,39 @@ export function createSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_rating_results_run_id ON rating_results(run_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_rating_results_run_position ON rating_results(run_id, position);
     CREATE INDEX IF NOT EXISTS idx_rating_results_run_score ON rating_results(run_id, score DESC);
+
+    CREATE TABLE IF NOT EXISTS site_lists (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      is_default INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS site_list_items (
+      id TEXT PRIMARY KEY,
+      list_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      site_url TEXT NOT NULL,
+      FOREIGN KEY (list_id) REFERENCES site_lists(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_site_list_items_list_id ON site_list_items(list_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_site_list_items_position ON site_list_items(list_id, position);
   `);
+
+  addColumnIfMissing(db, "rating_runs", "site_list_id", "TEXT");
+  addColumnIfMissing(db, "rating_runs", "settings_json", "TEXT");
+  addColumnIfMissing(db, "rating_runs", "error", "TEXT");
+}
+
+function addColumnIfMissing(db: Database.Database, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+
+  if (!columns.some((item) => item.name === column)) {
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  }
 }
 
 export function importLegalSources(db: Database.Database): void {

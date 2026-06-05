@@ -2,13 +2,32 @@ import Fastify from "fastify";
 import { access, readFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { findWorkspaceRoot, getLegalSources, openDatabase } from "@sveden-checker/database";
-import type { CheckReport, CheckRequest, ProjectInfo, RatingRunDetails, RatingStartRequest } from "@sveden-checker/shared";
+import type {
+  CheckReport,
+  CheckRequest,
+  ProjectInfo,
+  RatingRunDetails,
+  RatingStartRequest,
+  SiteList,
+  SiteListCreateRequest,
+  UpdateInfo
+} from "@sveden-checker/shared";
 import { checkSvedenSite } from "./checker.js";
-import { getLatestRatingRun, getRatingRunDetails, initializeRatingManager, pauseRatingRun, startRatingRun } from "./rating.js";
+import {
+  createSiteList,
+  getLatestRatingRun,
+  getRatingResultReport,
+  getRatingRunDetails,
+  getSiteLists,
+  initializeRatingManager,
+  pauseRatingRun,
+  startRatingRun
+} from "./rating.js";
 
 const app = Fastify({
   logger: true
 });
+const appVersion = "0.1.4";
 
 openDatabase();
 initializeRatingManager();
@@ -58,7 +77,7 @@ app.get<{ Params: { id: string } }>("/api/legal-sources/:id/file", async (reques
 
 app.get("/api/project-info", async (): Promise<ProjectInfo> => ({
   name: "Sveden Checker",
-  version: "0.1.3",
+  version: appVersion,
   purpose:
     "Локальное веб-приложение для предварительной самопроверки раздела «Сведения об образовательной организации» на сайте образовательной организации.",
   warning:
@@ -88,6 +107,19 @@ app.post<{ Body: CheckRequest }>("/api/check", async (request, reply): Promise<C
 
 app.get("/api/rating-runs/latest", async (): Promise<RatingRunDetails | null> => getLatestRatingRun());
 
+app.get("/api/site-lists", async (): Promise<SiteList[]> => getSiteLists());
+
+app.post<{ Body: SiteListCreateRequest }>("/api/site-lists", async (request, reply): Promise<SiteList> => {
+  try {
+    return createSiteList(request.body);
+  } catch (error) {
+    return reply.status(400).send({
+      error: "invalid_site_list",
+      message: error instanceof Error ? error.message : "Не удалось импортировать список сайтов"
+    }) as never;
+  }
+});
+
 app.get<{ Params: { id: string } }>("/api/rating-runs/:id", async (request, reply): Promise<RatingRunDetails> => {
   const details = getRatingRunDetails(request.params.id);
 
@@ -106,6 +138,21 @@ app.post<{ Body: RatingStartRequest }>("/api/rating-runs/start", async (request)
 });
 
 app.post("/api/rating-runs/pause", async (): Promise<RatingRunDetails | null> => pauseRatingRun());
+
+app.get<{ Params: { id: string } }>("/api/rating-results/:id/report", async (request, reply): Promise<CheckReport> => {
+  const report = getRatingResultReport(request.params.id);
+
+  if (!report) {
+    return reply.status(404).send({
+      error: "rating_report_not_found",
+      message: "Подробный отчет для сайта не найден"
+    }) as never;
+  }
+
+  return report;
+});
+
+app.get("/api/updates/check", async (): Promise<UpdateInfo> => checkForUpdates());
 
 app.setNotFoundHandler(async (request, reply) => {
   if (request.url.startsWith("/api/")) {
@@ -145,6 +192,66 @@ try {
 } catch (error) {
   app.log.error(error);
   process.exit(1);
+}
+
+async function checkForUpdates(): Promise<UpdateInfo> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const response = await fetch("https://api.github.com/repos/ftfour/sveden-checker/releases/latest", {
+      headers: {
+        accept: "application/vnd.github+json",
+        "user-agent": "SvedenChecker/0.1 (+local self-check tool)"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API HTTP ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      tag_name?: string;
+      html_url?: string;
+      assets?: Array<{ name: string; browser_download_url: string }>;
+    };
+    const latestVersion = (payload.tag_name ?? "").replace(/^v/, "") || null;
+    const exeAsset = payload.assets?.find((asset) => asset.name.endsWith("-win-x64.exe"));
+
+    return {
+      currentVersion: appVersion,
+      latestVersion,
+      updateAvailable: latestVersion ? compareVersions(latestVersion, appVersion) > 0 : false,
+      releaseUrl: payload.html_url ?? null,
+      downloadUrl: exeAsset?.browser_download_url ?? null,
+      checkedAt,
+      error: null
+    };
+  } catch (error) {
+    return {
+      currentVersion: appVersion,
+      latestVersion: null,
+      updateAvailable: false,
+      releaseUrl: null,
+      downloadUrl: null,
+      checkedAt,
+      error: error instanceof Error ? error.message : "Не удалось проверить обновления"
+    };
+  }
+}
+
+function compareVersions(left: string, right: string): number {
+  const leftParts = left.split(".").map((part) => Number(part));
+  const rightParts = right.split(".").map((part) => Number(part));
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index++) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+
+  return 0;
 }
 
 async function fileExists(path: string): Promise<boolean> {

@@ -8,18 +8,25 @@ import {
   BarChart3,
   BookOpen,
   CheckCircle2,
+  Clock,
   Clipboard,
   Database,
+  Download,
+  Eye,
   ExternalLink,
   FileCheck2,
+  FileText,
   LoaderCircle,
   MonitorCheck,
   PauseCircle,
   PlayCircle,
   RotateCcw,
   Search,
+  Settings,
   ShieldCheck,
   Trophy,
+  Upload,
+  WifiOff,
   Wrench,
   XCircle
 } from "lucide-react";
@@ -88,9 +95,39 @@ type CheckReport = {
   sections: CheckReportSection[];
 };
 
-type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "error";
+type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "offline" | "error";
 
-type RatingSiteStatus = "pending" | "running" | "checked" | "error";
+type RatingSiteStatus = "pending" | "running" | "checked" | "error" | "no_internet";
+
+type RatingSettings = {
+  concurrency: number;
+  retries: number;
+  pageTimeoutMs: number;
+  resourceTimeoutMs: number;
+  maxAddRefPages: number;
+  checkResourceLinks: boolean;
+};
+
+type SiteList = {
+  id: string;
+  title: string;
+  sourceName: string;
+  createdAt: string;
+  total: number;
+  isDefault: boolean;
+};
+
+type RatingAnalyticsItem = {
+  key: string;
+  title: string;
+  count: number;
+};
+
+type RatingAnalytics = {
+  topMissingItems: RatingAnalyticsItem[];
+  topErrorMessages: RatingAnalyticsItem[];
+  scoreBuckets: Array<{ label: string; count: number }>;
+};
 
 type RatingResult = {
   id: string;
@@ -117,10 +154,25 @@ type RatingRunDetails = {
   total: number;
   checked: number;
   failed: number;
+  noInternet: number;
   pending: number;
   averageScore: number | null;
+  etaSeconds: number | null;
+  settings: RatingSettings;
+  error: string | null;
   updatedAt: string;
   results: RatingResult[];
+  analytics: RatingAnalytics;
+};
+
+type UpdateInfo = {
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  downloadUrl: string | null;
+  checkedAt: string;
+  error: string | null;
 };
 
 type RecommendationPriority = "high" | "medium" | "low";
@@ -641,11 +693,26 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
 
 function RatingPage({ navigate }: { navigate: (path: string) => void }) {
   const [run, setRun] = React.useState<RatingRunDetails | null>(null);
+  const [siteLists, setSiteLists] = React.useState<SiteList[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isActionLoading, setIsActionLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [statusFilter, setStatusFilter] = React.useState<"all" | RatingSiteStatus>("all");
   const [query, setQuery] = React.useState("");
+  const [selectedSiteListId, setSelectedSiteListId] = React.useState("");
+  const [settings, setSettings] = React.useState<RatingSettings>({
+    concurrency: 3,
+    retries: 1,
+    pageTimeoutMs: 7000,
+    resourceTimeoutMs: 4000,
+    maxAddRefPages: 3,
+    checkResourceLinks: false
+  });
+  const [importTitle, setImportTitle] = React.useState("");
+  const [importContent, setImportContent] = React.useState("");
+  const [selectedReport, setSelectedReport] = React.useState<CheckReport | null>(null);
+  const [updateInfo, setUpdateInfo] = React.useState<UpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
 
   const isRunning = run?.status === "running";
 
@@ -654,9 +721,11 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
 
     async function load() {
       try {
-        const nextRun = await fetchLatestRatingRun();
+        const [nextRun, lists] = await Promise.all([fetchLatestRatingRun(), fetchSiteLists()]);
         if (isMounted) {
           setRun(nextRun);
+          setSiteLists(lists);
+          setSelectedSiteListId((current) => current || lists[0]?.id || "");
           setError(null);
         }
       } catch (caughtError) {
@@ -684,12 +753,59 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
     setError(null);
 
     try {
-      const nextRun = await postRatingAction("/api/rating-runs/start", { reset });
+      const nextRun = await postRatingAction("/api/rating-runs/start", {
+        reset,
+        siteListId: selectedSiteListId || undefined,
+        settings
+      });
       setRun(nextRun);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Не удалось запустить рейтинг");
     } finally {
       setIsActionLoading(false);
+    }
+  }
+
+  async function handleImportSites(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsActionLoading(true);
+    setError(null);
+
+    try {
+      const created = await createSiteList(importTitle, importContent);
+      const lists = await fetchSiteLists();
+      setSiteLists(lists);
+      setSelectedSiteListId(created.id);
+      setImportTitle("");
+      setImportContent("");
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Не удалось импортировать список");
+    } finally {
+      setIsActionLoading(false);
+    }
+  }
+
+  async function openRatingReport(result: RatingResult) {
+    setError(null);
+
+    try {
+      const report = await fetchRatingResultReport(result.id);
+      setSelectedReport(report);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Подробный отчет пока недоступен");
+    }
+  }
+
+  async function handleCheckUpdate() {
+    setIsCheckingUpdate(true);
+    setError(null);
+
+    try {
+      setUpdateInfo(await fetchUpdateInfo());
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Не удалось проверить обновления");
+    } finally {
+      setIsCheckingUpdate(false);
     }
   }
 
@@ -753,6 +869,7 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
             <p className="hero__lead">
               Проверка выполняется локально по списку `obr-sites.txt`. Каждый сайт сохраняется в SQLite сразу после
               обработки, поэтому прогон можно поставить на паузу и продолжить позже с первого незавершённого адреса.
+              Если у пользователя пропал интернет, текущий сайт помечается отдельно и не попадает в проверенные.
             </p>
           </div>
         </div>
@@ -780,6 +897,87 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
             <RotateCcw size={18} aria-hidden="true" />
             Новый запуск
           </button>
+          <button className="secondary-action" disabled={isCheckingUpdate} onClick={() => void handleCheckUpdate()} type="button">
+            {isCheckingUpdate ? <LoaderCircle className="spin" size={18} aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}
+            Проверить обновления
+          </button>
+        </div>
+
+        {updateInfo && (
+          <div className={updateInfo.updateAvailable ? "warning" : "loading-card"}>
+            <Download size={22} aria-hidden="true" />
+            <span>
+              Текущая версия: {updateInfo.currentVersion}. Последняя версия: {updateInfo.latestVersion ?? "не определена"}.
+              {updateInfo.updateAvailable && updateInfo.downloadUrl && (
+                <>
+                  {" "}
+                  <a href={updateInfo.downloadUrl} rel="noreferrer" target="_blank">
+                    Скачать новый exe
+                  </a>
+                </>
+              )}
+              {updateInfo.error && <> Ошибка проверки: {updateInfo.error}</>}
+            </span>
+          </div>
+        )}
+
+        <div className="rating-settings">
+          <div className="rating-settings__panel">
+            <div className="section__heading">
+              <p className="eyebrow">Список сайтов</p>
+              <h2>Источник рейтинга</h2>
+            </div>
+            <label>
+              Активный список
+              <select value={selectedSiteListId} onChange={(event) => setSelectedSiteListId(event.target.value)} disabled={isRunning}>
+                {siteLists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.title} — {list.total} сайтов
+                  </option>
+                ))}
+              </select>
+            </label>
+            <form className="site-import-form" onSubmit={handleImportSites}>
+              <label>
+                Название нового списка
+                <input value={importTitle} onChange={(event) => setImportTitle(event.target.value)} placeholder="Например, школы улуса" />
+              </label>
+              <label>
+                Сайты, по одному адресу в строке
+                <textarea
+                  value={importContent}
+                  onChange={(event) => setImportContent(event.target.value)}
+                  placeholder="https://example.edu.ru&#10;https://school.example.ru"
+                  rows={5}
+                />
+              </label>
+              <button className="secondary-action" disabled={isActionLoading || isRunning || importContent.trim().length === 0} type="submit">
+                <Upload size={18} aria-hidden="true" />
+                Импортировать список
+              </button>
+            </form>
+          </div>
+
+          <div className="rating-settings__panel">
+            <div className="section__heading">
+              <p className="eyebrow">Скорость и глубина</p>
+              <h2>Настройки проверки</h2>
+            </div>
+            <div className="settings-grid">
+              <NumberSetting label="Параллельно сайтов" max={8} min={1} value={settings.concurrency} onChange={(value) => setSettings({ ...settings, concurrency: value })} />
+              <NumberSetting label="Повторов при ошибке" max={3} min={0} value={settings.retries} onChange={(value) => setSettings({ ...settings, retries: value })} />
+              <NumberSetting label="Таймаут страницы, мс" max={20000} min={3000} step={1000} value={settings.pageTimeoutMs} onChange={(value) => setSettings({ ...settings, pageTimeoutMs: value })} />
+              <NumberSetting label="Доп. страниц addRef" max={10} min={0} value={settings.maxAddRefPages} onChange={(value) => setSettings({ ...settings, maxAddRefPages: value })} />
+            </div>
+            <label className="toggle-row">
+              <input
+                checked={settings.checkResourceLinks}
+                onChange={(event) => setSettings({ ...settings, checkResourceLinks: event.target.checked })}
+                type="checkbox"
+              />
+              Глубоко проверять открытие ссылок на документы
+            </label>
+          </div>
         </div>
 
         {run ? (
@@ -803,8 +1001,27 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
               <SummaryBadge label="Всего сайтов" value={run.total} />
               <SummaryBadge label="Проверено" value={run.checked} tone="found" />
               <SummaryBadge label="Ошибки" value={run.failed} tone="missing" />
+              <SummaryBadge label="Нет интернета" value={run.noInternet} tone="partial" />
               <SummaryBadge label="Осталось" value={run.pending} tone="partial" />
               <SummaryBadge label="Средний балл" value={run.averageScore ?? 0} />
+            </div>
+
+            <div className="rating-meta-strip">
+              <span>
+                <Settings size={17} aria-hidden="true" />
+                Потоков: {run.settings.concurrency}, повторов: {run.settings.retries}, документы:{" "}
+                {run.settings.checkResourceLinks ? "глубоко" : "быстро"}
+              </span>
+              <span>
+                <Clock size={17} aria-hidden="true" />
+                ETA: {run.etaSeconds === null ? "пока неизвестно" : formatDuration(run.etaSeconds)}
+              </span>
+              {run.status === "offline" && (
+                <span className="rating-offline">
+                  <WifiOff size={17} aria-hidden="true" />
+                  {run.error ?? "Нет подключения к интернету"}
+                </span>
+              )}
             </div>
 
             <div className="rating-progress" aria-label={`Проверено ${progressPercent}%`}>
@@ -834,6 +1051,12 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
               </div>
             </div>
 
+            <div className="rating-analytics">
+              <AnalyticsCard title="Распределение баллов" items={run.analytics.scoreBuckets.map((item) => ({ key: item.label, title: item.label, count: item.count }))} />
+              <AnalyticsCard title="Частые недочёты" items={run.analytics.topMissingItems} />
+              <AnalyticsCard title="Частые ошибки" items={run.analytics.topErrorMessages} />
+            </div>
+
             <div className="rating-table-card">
               <div className="rating-table-card__header">
                 <div>
@@ -852,6 +1075,7 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
                       <th>Статус</th>
                       <th>Дата</th>
                       <th>Сводка</th>
+                      <th>Детали</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -872,6 +1096,17 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
                         </td>
                         <td>{result.checkedAt ? new Date(result.checkedAt).toLocaleString("ru-RU") : "-"}</td>
                         <td>{result.summary ? ratingSummaryText(result.summary) : "-"}</td>
+                        <td>
+                          <button
+                            className="table-action"
+                            disabled={result.status !== "checked"}
+                            onClick={() => void openRatingReport(result)}
+                            type="button"
+                          >
+                            <Eye size={16} aria-hidden="true" />
+                            Отчёт
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -885,6 +1120,22 @@ function RatingPage({ navigate }: { navigate: (path: string) => void }) {
               Рейтинг ещё не запускался. Нажмите «Начать рейтинг», чтобы создать проверку по списку сайтов.
             </div>
           )
+        )}
+        {selectedReport && (
+          <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Подробный отчёт сайта">
+            <div className="report-modal">
+              <div className="report-modal__header">
+                <div>
+                  <p className="eyebrow">Подробный отчёт</p>
+                  <h2>{selectedReport.siteUrl}</h2>
+                </div>
+                <button className="secondary-action" onClick={() => setSelectedReport(null)} type="button">
+                  Закрыть
+                </button>
+              </div>
+              <CheckReportView report={selectedReport} navigate={navigate} />
+            </div>
+          </div>
         )}
       </section>
     </main>
@@ -1150,6 +1401,56 @@ function LegalReferenceView({ reference, compact = false }: { reference: CheckLe
   );
 }
 
+function NumberSetting({
+  label,
+  max,
+  min,
+  onChange,
+  step = 1,
+  value
+}: {
+  label: string;
+  max: number;
+  min: number;
+  onChange: (value: number) => void;
+  step?: number;
+  value: number;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        max={max}
+        min={min}
+        onChange={(event) => onChange(Number(event.target.value))}
+        step={step}
+        type="number"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function AnalyticsCard({ items, title }: { items: RatingAnalyticsItem[]; title: string }) {
+  return (
+    <article className="analytics-card">
+      <h3>{title}</h3>
+      {items.length === 0 ? (
+        <p>Данных пока нет.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.key}>
+              <span>{item.title}</span>
+              <strong>{item.count}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  );
+}
+
 function SummaryBadge({ label, value, tone }: { label: string; value: number; tone?: "found" | "partial" | "missing" }) {
   return (
     <div className={`summary-badge ${tone ? `summary-badge--${tone}` : ""}`}>
@@ -1173,6 +1474,7 @@ const ratingFilters: Array<{ label: string; value: "all" | RatingSiteStatus }> =
   { label: "Все", value: "all" },
   { label: "Проверено", value: "checked" },
   { label: "Ошибки", value: "error" },
+  { label: "Нет интернета", value: "no_internet" },
   { label: "В очереди", value: "pending" },
   { label: "Сейчас проверяется", value: "running" }
 ];
@@ -1185,6 +1487,54 @@ async function fetchLatestRatingRun(): Promise<RatingRunDetails | null> {
   }
 
   return (await response.json()) as RatingRunDetails | null;
+}
+
+async function fetchSiteLists(): Promise<SiteList[]> {
+  const response = await fetch("/api/site-lists");
+
+  if (!response.ok) {
+    throw new Error("Не удалось загрузить списки сайтов");
+  }
+
+  return (await response.json()) as SiteList[];
+}
+
+async function createSiteList(title: string, content: string): Promise<SiteList> {
+  const response = await fetch("/api/site-lists", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ title, content, sourceName: "manual-import.txt" })
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? "Не удалось импортировать список сайтов");
+  }
+
+  return payload as SiteList;
+}
+
+async function fetchRatingResultReport(resultId: string): Promise<CheckReport> {
+  const response = await fetch(`/api/rating-results/${encodeURIComponent(resultId)}/report`);
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? "Подробный отчёт недоступен");
+  }
+
+  return payload as CheckReport;
+}
+
+async function fetchUpdateInfo(): Promise<UpdateInfo> {
+  const response = await fetch("/api/updates/check");
+
+  if (!response.ok) {
+    throw new Error("Не удалось проверить обновления");
+  }
+
+  return (await response.json()) as UpdateInfo;
 }
 
 async function postRatingAction(path: string, body?: unknown): Promise<RatingRunDetails | null> {
@@ -1209,6 +1559,7 @@ function ratingStatusLabel(status: RatingRunStatus): string {
     completed: "завершено",
     error: "ошибка",
     idle: "ожидает запуска",
+    offline: "нет интернета",
     paused: "на паузе",
     running: "выполняется"
   };
@@ -1220,6 +1571,7 @@ function ratingSiteStatusLabel(status: RatingSiteStatus): string {
   const labels: Record<RatingSiteStatus, string> = {
     checked: "проверено",
     error: "ошибка",
+    no_internet: "нет интернета",
     pending: "в очереди",
     running: "проверяется"
   };
@@ -1229,6 +1581,22 @@ function ratingSiteStatusLabel(status: RatingSiteStatus): string {
 
 function ratingSummaryText(summary: CheckSummary): string {
   return `найдено ${summary.found}, частично ${summary.partial}, нет ${summary.missing}, ошибок ${summary.errors}`;
+}
+
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours} ч ${minutes} мин`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} мин ${rest} с`;
+  }
+
+  return `${rest} с`;
 }
 
 function buildRecommendations(report: CheckReport): Recommendation[] {
