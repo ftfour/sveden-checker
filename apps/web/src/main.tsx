@@ -814,6 +814,8 @@ function SectionResultCard({ section }: { section: CheckReportSection }) {
         </ul>
       )}
 
+      <SectionGroupedTables section={section} />
+
       {section.items.length > 0 ? (
         <ul className="check-items">
           {section.items.map((item) => (
@@ -825,6 +827,100 @@ function SectionResultCard({ section }: { section: CheckReportSection }) {
       )}
     </article>
   );
+}
+
+function SectionGroupedTables({ section }: { section: CheckReportSection }) {
+  const groups = buildSectionGroups(section);
+
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grouped-tables">
+      {groups.map((group) => (
+        <article className="grouped-table-card" key={group.parentItemprop}>
+          <div className="grouped-table-card__heading">
+            <div>
+              <p className="eyebrow">{group.parent.ruleNumber ? `Пункт ${group.parent.ruleNumber}` : group.parent.itemprop}</p>
+              <h4>{group.parent.title}</h4>
+              {group.parent.ruleHint && <p>{group.parent.ruleHint}</p>}
+            </div>
+            <span>{group.rows.length} строк</span>
+          </div>
+          <div className="grouped-table-wrap">
+            <table className="grouped-table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  {group.children.map((child) => (
+                    <th key={child.key}>
+                      {child.ruleNumber && <span>{child.ruleNumber}</span>}
+                      {child.title}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {group.rows.map((row) => (
+                  <tr key={row.index}>
+                    <td>{row.index}</td>
+                    {group.children.map((child) => {
+                      const instance = child.instances?.find((item) => item.index === row.index);
+
+                      return (
+                        <td className={instance ? `grouped-cell grouped-cell--${instance.status}` : "grouped-cell grouped-cell--missing"} key={child.key}>
+                          <strong>{child.itemprop}</strong>
+                          {instance?.href ? (
+                            <a href={instance.href} rel="noreferrer" target="_blank">
+                              {instance.value || instance.href}
+                            </a>
+                          ) : (
+                            <span>{instance?.value || instance?.message || "не найдено"}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function buildSectionGroups(section: CheckReportSection): Array<{
+  parentItemprop: string;
+  parent: CheckResultItem;
+  children: CheckResultItem[];
+  rows: Array<{ index: number }>;
+}> {
+  const groupedParents = [...new Set(section.items.flatMap((item) => (item.parentItemprop && item.instances?.length ? [item.parentItemprop] : [])))];
+
+  return groupedParents.flatMap((parentItemprop) => {
+    const parent = section.items.find((item) => item.itemprop === parentItemprop);
+    const children = section.items.filter((item) => item.parentItemprop === parentItemprop && item.instances && item.instances.length > 0);
+
+    if (!parent || children.length === 0) {
+      return [];
+    }
+
+    const rowIndexes = [
+      ...new Set(children.flatMap((child) => child.instances?.map((instance) => instance.index) ?? []))
+    ].sort((left, right) => left - right);
+
+    return [
+      {
+        parentItemprop,
+        parent,
+        children,
+        rows: rowIndexes.map((index) => ({ index }))
+      }
+    ];
+  });
 }
 
 function CheckItemRow({ item }: { item: CheckResultItem }) {
@@ -1549,7 +1645,7 @@ function RecommendationGroup({
               {recommendation.ruleNumber && (
                 <div>
                   <dt>Пункт методички</dt>
-                  <dd>Таблица 3.2.1, пункт {recommendation.ruleNumber}</dd>
+                  <dd>{methodicalTableLabel(recommendation.sectionId)}, пункт {recommendation.ruleNumber}</dd>
                 </div>
               )}
               {recommendation.ruleHint && (
@@ -2002,6 +2098,16 @@ function layoutLabel(layout: NonNullable<CheckResultItem["layout"]>): string {
   };
 
   return labels[layout];
+}
+
+function methodicalTableLabel(sectionId: string): string {
+  const labels: Record<string, string> = {
+    common: "Таблица 3.2.1",
+    document: "Таблица 3.4.1",
+    struct: "Таблица 3.3.1"
+  };
+
+  return labels[sectionId] ?? "Таблица методических рекомендаций";
 }
 
 function priorityLabel(priority: RecommendationPriority): string {

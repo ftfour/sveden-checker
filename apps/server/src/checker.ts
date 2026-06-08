@@ -1146,10 +1146,20 @@ function buildLegalPoint(item: CheckResultItem, section: CheckReportSection, sou
   }
 
   if (source.id.startsWith("methodical")) {
-    return `Методические рекомендации v9.0.0, таблица 3.2.1; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+    return `Методические рекомендации v9.0.0, ${getMethodicalTableNumber(section.id)}; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
   }
 
   return `${source.short_title ?? source.title}; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+}
+
+function getMethodicalTableNumber(sectionId: string): string {
+  const tables: Record<string, string> = {
+    common: "таблица 3.2.1",
+    struct: "таблица 3.3.1",
+    document: "таблица 3.4.1"
+  };
+
+  return tables[sectionId] ?? "таблица с перечнем атрибутов микроразметки";
 }
 
 function buildSectionUrl(siteUrl: string, path: string): string {
