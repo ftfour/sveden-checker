@@ -52,7 +52,7 @@ type CheckLegalReference = {
   sourceUrl: string | null;
 };
 
-type CheckItemStatus = "found" | "partial" | "empty" | "missing" | "error";
+type CheckItemStatus = "found" | "partial" | "empty" | "missing" | "error" | "invalid" | "document_error" | "not_applicable";
 
 type CheckSummary = {
   total: number;
@@ -60,6 +60,26 @@ type CheckSummary = {
   partial: number;
   missing: number;
   errors: number;
+  invalid?: number;
+  documentErrors?: number;
+  notApplicable?: number;
+  weightedScore?: number;
+  maxScore?: number;
+};
+
+type CheckProblemType =
+  | "ok"
+  | "missing_itemprop"
+  | "empty_value"
+  | "invalid_value"
+  | "document_unavailable"
+  | "page_error"
+  | "not_applicable";
+
+type CheckQualityIssue = {
+  kind: "email" | "telephone" | "url" | "document" | "placeholder" | "text";
+  message: string;
+  suggestion?: string;
 };
 
 type CheckResultItem = {
@@ -69,11 +89,16 @@ type CheckResultItem = {
   ruleType?: "itemprop" | "itempropLink";
   status: CheckItemStatus;
   score: number;
+  weight?: number;
+  maxScore?: number;
   message: string;
   value?: string;
   legalSourceId?: string;
   legalSource?: CheckLegalReference;
   severity?: "error" | "warning" | "info";
+  problemType?: CheckProblemType;
+  quality?: CheckQualityIssue;
+  legalPoint?: string;
 };
 
 type CheckReportSection = {
@@ -85,6 +110,7 @@ type CheckReportSection = {
   summary: CheckSummary;
   items: CheckResultItem[];
   message?: string;
+  diagnostics?: string[];
 };
 
 type CheckReport = {
@@ -93,6 +119,19 @@ type CheckReport = {
   overallScore: number;
   summary: CheckSummary;
   sections: CheckReportSection[];
+  diagnostics?: string[];
+  fixPlan?: string[];
+  previousComparison?: {
+    previousCheckedAt: string;
+    previousScore: number;
+    delta: number;
+  } | null;
+  scoreBreakdown?: {
+    structure: number;
+    completeness: number;
+    quality: number;
+    documents: number;
+  };
 };
 
 type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "offline" | "error";
@@ -177,7 +216,7 @@ type UpdateInfo = {
 
 type RecommendationPriority = "high" | "medium" | "low";
 
-type RecommendationFilter = "all" | "high" | "medium" | "low" | "missing" | "empty" | "error";
+type RecommendationFilter = "all" | "high" | "medium" | "low" | "missing" | "empty" | "error" | "invalid" | "document_error";
 
 type Recommendation = {
   id: string;
@@ -194,9 +233,12 @@ type Recommendation = {
   recommendation: string;
   exampleHtml: string;
   legalSource?: CheckLegalReference;
+  problemType?: CheckProblemType;
+  quality?: CheckQualityIssue;
 };
 
 const LAST_REPORT_STORAGE_KEY = "sveden_checker_last_report";
+const REPORT_HISTORY_STORAGE_KEY = "sveden_checker_report_history";
 
 const purposeItems = [
   "проверка структуры /sveden/",
@@ -514,7 +556,8 @@ function CheckPage({
         throw new Error(payload.message ?? "Не удалось выполнить проверку");
       }
 
-      const nextReport = payload as CheckReport;
+      const nextReport = withPreviousComparison(payload as CheckReport);
+      storeReportHistory(nextReport);
       setReport(nextReport);
       setLastReport(nextReport);
     } catch (caughtError) {
@@ -629,7 +672,57 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
         <SummaryBadge label="Частично" value={report.summary.partial} tone="partial" />
         <SummaryBadge label="Отсутствует" value={report.summary.missing} tone="missing" />
         <SummaryBadge label="Ошибки" value={report.summary.errors} tone="missing" />
+        <SummaryBadge label="Некорректно" value={report.summary.invalid ?? 0} tone="partial" />
+        <SummaryBadge label="Документы" value={report.summary.documentErrors ?? 0} tone="missing" />
+        <SummaryBadge label="Неприменимо" value={report.summary.notApplicable ?? 0} />
       </div>
+
+      {report.previousComparison && (
+        <div className={report.previousComparison.delta >= 0 ? "notice-card notice-card--good" : "notice-card notice-card--warn"}>
+          <Clock size={21} aria-hidden="true" />
+          <span>
+            Предыдущая проверка: {new Date(report.previousComparison.previousCheckedAt).toLocaleString("ru-RU")}, было{" "}
+            {report.previousComparison.previousScore}%. Изменение: {formatScoreDelta(report.previousComparison.delta)}.
+          </span>
+        </div>
+      )}
+
+      {report.scoreBreakdown && (
+        <div className="score-breakdown">
+          <SummaryBadge label="Структура" value={report.scoreBreakdown.structure} />
+          <SummaryBadge label="Заполненность" value={report.scoreBreakdown.completeness} />
+          <SummaryBadge label="Качество" value={report.scoreBreakdown.quality} />
+          <SummaryBadge label="Документы" value={report.scoreBreakdown.documents} />
+        </div>
+      )}
+
+      {report.diagnostics && report.diagnostics.length > 0 && (
+        <div className="diagnostics-card">
+          <div>
+            <p className="eyebrow">Диагностика</p>
+            <h3>Типовые проблемы сайта</h3>
+          </div>
+          <ul>
+            {report.diagnostics.map((diagnostic) => (
+              <li key={diagnostic}>{diagnostic}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.fixPlan && report.fixPlan.length > 0 && (
+        <div className="diagnostics-card diagnostics-card--plan">
+          <div>
+            <p className="eyebrow">План исправлений</p>
+            <h3>Рекомендуемый порядок работ</h3>
+          </div>
+          <ol>
+            {report.fixPlan.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="report-actions">
         <a
@@ -663,9 +756,19 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
               <SummaryBadge label="Частично" value={section.summary.partial} tone="partial" />
               <SummaryBadge label="Нет" value={section.summary.missing} tone="missing" />
               <SummaryBadge label="Ошибки" value={section.summary.errors} tone="missing" />
+              <SummaryBadge label="Некорректно" value={section.summary.invalid ?? 0} tone="partial" />
+              <SummaryBadge label="Документы" value={section.summary.documentErrors ?? 0} tone="missing" />
+              <SummaryBadge label="Неприменимо" value={section.summary.notApplicable ?? 0} />
             </div>
 
             {section.message && <p className="result-card__message">{section.message}</p>}
+            {section.diagnostics && section.diagnostics.length > 0 && (
+              <ul className="section-diagnostics">
+                {section.diagnostics.map((diagnostic) => (
+                  <li key={diagnostic}>{diagnostic}</li>
+                ))}
+              </ul>
+            )}
 
             {section.items.length > 0 ? (
               <ul className="check-items">
@@ -675,6 +778,9 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
                     <div>
                       <strong>{item.title}</strong>
                       <p>{item.message}</p>
+                      {item.quality?.suggestion && <p>{item.quality.suggestion}</p>}
+                      {item.itemprop && <small>itemprop="{item.itemprop}"</small>}
+                      {item.weight && <small>Вес пункта: {item.weight}</small>}
                       {item.value && <small>{item.value}</small>}
                       {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
                     </div>
@@ -1226,8 +1332,8 @@ function RecommendationsPage({ report, navigate }: { report: CheckReport | null;
             <p className="eyebrow">Следующий шаг после отчёта</p>
             <h1>Рекомендации по исправлениям</h1>
             <p className="hero__lead">
-              Карточки сформированы из последнего отчёта проверки: missing, partial, empty и error. Все рекомендации
-              справочные и помогают подготовить сайт к официальной проверке.
+              Карточки сформированы из последнего отчёта проверки: missing, partial, empty, invalid, document_error и
+              error. Все рекомендации справочные и помогают подготовить сайт к официальной проверке.
             </p>
           </div>
         </div>
@@ -1251,6 +1357,20 @@ function RecommendationsPage({ report, navigate }: { report: CheckReport | null;
             <SummaryBadge label="Низкий приоритет" value={lowCount} />
           </div>
         </div>
+
+        {report.fixPlan && report.fixPlan.length > 0 && (
+          <div className="diagnostics-card diagnostics-card--plan">
+            <div>
+              <p className="eyebrow">План исправлений</p>
+              <h3>С чего начать</h3>
+            </div>
+            <ol>
+              {report.fixPlan.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         <div className="recommendation-filters" aria-label="Фильтры рекомендаций">
           {recommendationFilters.map((item) => (
@@ -1349,6 +1469,12 @@ function RecommendationGroup({
                 <dt>Проблема</dt>
                 <dd>{recommendation.problem}</dd>
               </div>
+              {recommendation.quality?.suggestion && (
+                <div>
+                  <dt>Проверка качества</dt>
+                  <dd>{recommendation.quality.suggestion}</dd>
+                </div>
+              )}
               <div>
                 <dt>Почему это важно</dt>
                 <dd>{whyImportant(recommendation)}</dd>
@@ -1467,6 +1593,8 @@ const recommendationFilters: Array<{ label: string; value: RecommendationFilter 
   { label: "Низкий приоритет", value: "low" },
   { label: "Только отсутствующие", value: "missing" },
   { label: "Только пустые", value: "empty" },
+  { label: "Только некорректные", value: "invalid" },
+  { label: "Только документы", value: "document_error" },
   { label: "Только ошибки загрузки", value: "error" }
 ];
 
@@ -1580,7 +1708,13 @@ function ratingSiteStatusLabel(status: RatingSiteStatus): string {
 }
 
 function ratingSummaryText(summary: CheckSummary): string {
-  return `найдено ${summary.found}, частично ${summary.partial}, нет ${summary.missing}, ошибок ${summary.errors}`;
+  const extras = [];
+  if ((summary.invalid ?? 0) > 0) extras.push(`некорректно ${summary.invalid}`);
+  if ((summary.documentErrors ?? 0) > 0) extras.push(`документы ${summary.documentErrors}`);
+
+  return `найдено ${summary.found}, частично ${summary.partial}, нет ${summary.missing}, ошибок ${summary.errors}${
+    extras.length > 0 ? `, ${extras.join(", ")}` : ""
+  }`;
 }
 
 function formatDuration(seconds: number): string {
@@ -1602,7 +1736,14 @@ function formatDuration(seconds: number): string {
 function buildRecommendations(report: CheckReport): Recommendation[] {
   return report.sections.flatMap((section) =>
     section.items
-      .filter((item) => item.status === "missing" || item.status === "partial" || item.status === "empty" || item.status === "error")
+      .filter((item) =>
+        item.status === "missing" ||
+        item.status === "partial" ||
+        item.status === "empty" ||
+        item.status === "error" ||
+        item.status === "invalid" ||
+        item.status === "document_error"
+      )
       .map((item) => {
         const itemprop = item.itemprop ?? item.key;
         const priority = calculatePriority(item);
@@ -1618,10 +1759,12 @@ function buildRecommendations(report: CheckReport): Recommendation[] {
           status: item.status,
           severity: item.severity ?? "warning",
           priority,
-          problem: recommendationProblem(item.status),
-          recommendation: recommendationText(item.status, itemprop),
+          problem: recommendationProblem(item),
+          recommendation: recommendationText(item, itemprop),
           exampleHtml: buildExampleHtml(itemprop, item.title, item.ruleType),
-          legalSource: item.legalSource
+          legalSource: item.legalSource,
+          problemType: item.problemType,
+          quality: item.quality
         };
       })
   );
@@ -1632,7 +1775,12 @@ function legalFileUrl(id: string): string {
 }
 
 function calculatePriority(item: CheckResultItem): RecommendationPriority {
-  if (item.status === "error" || (item.status === "missing" && item.severity === "error")) {
+  if (
+    item.status === "error" ||
+    item.status === "document_error" ||
+    item.status === "invalid" ||
+    (item.status === "missing" && item.severity === "error")
+  ) {
     return "high";
   }
 
@@ -1643,24 +1791,40 @@ function calculatePriority(item: CheckResultItem): RecommendationPriority {
   return "low";
 }
 
-function recommendationProblem(status: CheckItemStatus): string {
-  if (status === "error") {
+function recommendationProblem(item: CheckResultItem): string {
+  if (item.problemType === "document_unavailable" || item.status === "document_error") {
+    return item.message || "Документ или ссылка на ресурс недоступны.";
+  }
+
+  if (item.problemType === "invalid_value" || item.status === "invalid") {
+    return item.quality?.message ?? item.message ?? "Значение найдено, но выглядит некорректным.";
+  }
+
+  if (item.status === "error") {
     return "Страница раздела не загрузилась.";
   }
 
-  if (status === "partial" || status === "empty") {
+  if (item.status === "partial" || item.status === "empty") {
     return "Разметка itemprop найдена, но значение пустое.";
   }
 
   return "Пункт не найден на странице раздела.";
 }
 
-function recommendationText(status: CheckItemStatus, itemprop: string): string {
-  if (status === "error") {
+function recommendationText(item: CheckResultItem, itemprop: string): string {
+  if (item.problemType === "document_unavailable" || item.status === "document_error") {
+    return `Проверьте ссылку с itemprop="${itemprop}": файл должен открываться без авторизации, редиректа на ошибку или подмены HTML-страницей. Лучше указывать прямую ссылку на PDF/DOC/DOCX/XLS/XLSX.`;
+  }
+
+  if (item.problemType === "invalid_value" || item.status === "invalid") {
+    return item.quality?.suggestion ?? `Исправьте значение внутри элемента с itemprop="${itemprop}", чтобы оно соответствовало ожидаемому формату.`;
+  }
+
+  if (item.status === "error") {
     return "Проверьте доступность страницы, правильность ссылки, HTTP-статус, редиректы, SSL-сертификат, настройки VPN/Proxy и доступность сайта с компьютера пользователя.";
   }
 
-  if (status === "partial" || status === "empty") {
+  if (item.status === "partial" || item.status === "empty") {
     return `Заполните значение внутри элемента с itemprop="${itemprop}". Не оставляйте пустые span, div, td или ссылки.`;
   }
 
@@ -1686,6 +1850,7 @@ function buildExampleHtml(itemprop: string, title: string, ruleType?: "itemprop"
 function matchesRecommendationFilter(recommendation: Recommendation, filter: RecommendationFilter): boolean {
   if (filter === "all") return true;
   if (filter === "high" || filter === "medium" || filter === "low") return recommendation.priority === filter;
+  if (filter === "empty") return recommendation.status === "empty" || recommendation.status === "partial";
   return recommendation.status === filter;
 }
 
@@ -1695,7 +1860,10 @@ function statusLabel(status: CheckItemStatus): string {
     partial: "частично",
     empty: "пусто",
     missing: "не найдено",
-    error: "ошибка"
+    error: "ошибка",
+    invalid: "некорректно",
+    document_error: "документ недоступен",
+    not_applicable: "неприменимо"
   };
 
   return labels[status];
@@ -1721,6 +1889,53 @@ function whyImportant(recommendation: Recommendation): string {
   }
 
   return `Пункт относится к раскрытию сведений раздела «${recommendation.sectionTitle}». Без корректного itemprop автоматическая проверка может не распознать размещённую информацию.`;
+}
+
+function withPreviousComparison(report: CheckReport): CheckReport {
+  const previous = readReportHistory()[report.siteUrl];
+
+  if (!previous) {
+    return { ...report, previousComparison: null };
+  }
+
+  return {
+    ...report,
+    previousComparison: {
+      previousCheckedAt: previous.checkedAt,
+      previousScore: previous.overallScore,
+      delta: report.overallScore - previous.overallScore
+    }
+  };
+}
+
+function storeReportHistory(report: CheckReport): void {
+  try {
+    const history = readReportHistory();
+    history[report.siteUrl] = {
+      checkedAt: report.checkedAt,
+      overallScore: report.overallScore
+    };
+    localStorage.setItem(REPORT_HISTORY_STORAGE_KEY, JSON.stringify(history));
+  } catch {
+    // История сравнения вспомогательная: ошибка записи не должна ломать проверку.
+  }
+}
+
+function readReportHistory(): Record<string, { checkedAt: string; overallScore: number }> {
+  try {
+    const rawHistory = localStorage.getItem(REPORT_HISTORY_STORAGE_KEY);
+    return rawHistory ? (JSON.parse(rawHistory) as Record<string, { checkedAt: string; overallScore: number }>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function formatScoreDelta(delta: number): string {
+  if (delta === 0) {
+    return "0%";
+  }
+
+  return `${delta > 0 ? "+" : ""}${delta}%`;
 }
 
 function readStoredReport(): CheckReport | null {

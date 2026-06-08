@@ -26,7 +26,15 @@ export type CheckRequest = {
   url: string;
 };
 
-export type CheckItemStatus = "found" | "partial" | "empty" | "missing" | "error";
+export type CheckItemStatus =
+  | "found"
+  | "partial"
+  | "empty"
+  | "missing"
+  | "error"
+  | "invalid"
+  | "document_error"
+  | "not_applicable";
 
 export type CheckSectionStatus = "checked" | "error";
 
@@ -36,6 +44,26 @@ export type CheckSummary = {
   partial: number;
   missing: number;
   errors: number;
+  invalid?: number;
+  documentErrors?: number;
+  notApplicable?: number;
+  weightedScore?: number;
+  maxScore?: number;
+};
+
+export type CheckProblemType =
+  | "ok"
+  | "missing_itemprop"
+  | "empty_value"
+  | "invalid_value"
+  | "document_unavailable"
+  | "page_error"
+  | "not_applicable";
+
+export type CheckQualityIssue = {
+  kind: "email" | "telephone" | "url" | "document" | "placeholder" | "text";
+  message: string;
+  suggestion?: string;
 };
 
 export type CheckResultItem = {
@@ -45,11 +73,16 @@ export type CheckResultItem = {
   ruleType?: "itemprop" | "itempropLink";
   status: CheckItemStatus;
   score: number;
+  weight?: number;
+  maxScore?: number;
   message: string;
   value?: string;
   legalSourceId?: string;
   legalSource?: CheckLegalReference;
   severity?: "error" | "warning" | "info";
+  problemType?: CheckProblemType;
+  quality?: CheckQualityIssue;
+  legalPoint?: string;
 };
 
 export type CheckLegalReference = {
@@ -71,6 +104,7 @@ export type CheckReportSection = {
   summary: CheckSummary;
   items: CheckResultItem[];
   message?: string;
+  diagnostics?: string[];
 };
 
 export type CheckReport = {
@@ -79,6 +113,19 @@ export type CheckReport = {
   overallScore: number;
   summary: CheckSummary;
   sections: CheckReportSection[];
+  diagnostics?: string[];
+  fixPlan?: string[];
+  previousComparison?: {
+    previousCheckedAt: string;
+    previousScore: number;
+    delta: number;
+  } | null;
+  scoreBreakdown?: {
+    structure: number;
+    completeness: number;
+    quality: number;
+    documents: number;
+  };
 };
 
 export type RatingRunStatus = "idle" | "running" | "paused" | "completed" | "offline" | "error";

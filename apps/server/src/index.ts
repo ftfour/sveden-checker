@@ -27,7 +27,7 @@ import {
 const app = Fastify({
   logger: true
 });
-const appVersion = "0.1.4";
+const appVersion = "0.1.5";
 
 openDatabase();
 initializeRatingManager();

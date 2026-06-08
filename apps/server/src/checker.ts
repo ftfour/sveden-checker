@@ -22,6 +22,20 @@ type FetchResult =
       error: string;
     };
 
+type StructureCheckResult = {
+  score: number;
+  diagnostics: string[];
+  missingPaths: string[];
+};
+
+type ResourceCheckResult = {
+  ok: boolean;
+  statusCode?: number;
+  message: string;
+  contentType?: string | null;
+  contentLength?: number | null;
+};
+
 export type CheckSvedenOptions = {
   pageTimeoutMs?: number;
   resourceTimeoutMs?: number;
@@ -66,19 +80,25 @@ export async function checkSvedenSite(rawUrl: string, options: CheckSvedenOption
   const rulesBySection = new Map(ruleset.sections.map((section) => [section.section, section]));
   const legalSourcesById = new Map(getLegalSources().map((source) => [source.id, source]));
 
-  await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"), resolvedOptions.pageTimeoutMs, resolvedOptions.signal);
+  const svedenRootResult = await fetchHtml(buildSectionUrl(siteUrl, "/sveden/"), resolvedOptions.pageTimeoutMs, resolvedOptions.signal);
+  const structureCheck = analyzeSvedenStructure(siteUrl, svedenRootResult);
 
   const sections = await Promise.all(
     mainSvedenSections.map((section) => checkSection(siteUrl, section, rulesBySection.get(section.id), resolvedOptions))
   );
   const sectionsWithLegalReferences = sections.map((section) => attachLegalReferences(section, legalSourcesById));
+  const summary = mergeSummaries(sectionsWithLegalReferences.map((section) => section.summary));
+  const diagnostics = buildReportDiagnostics(sectionsWithLegalReferences, structureCheck);
 
   return {
     siteUrl,
     checkedAt: new Date().toISOString(),
     overallScore: calculateOverallScore(sectionsWithLegalReferences),
-    summary: mergeSummaries(sectionsWithLegalReferences.map((section) => section.summary)),
-    sections: sectionsWithLegalReferences
+    summary,
+    sections: sectionsWithLegalReferences,
+    diagnostics,
+    fixPlan: buildFixPlan(sectionsWithLegalReferences, structureCheck, diagnostics),
+    scoreBreakdown: buildScoreBreakdown(sectionsWithLegalReferences, structureCheck)
   };
 }
 
@@ -118,13 +138,16 @@ async function checkSection(
       title: rule.title,
       itemprop: rule.itemprop,
       ruleType: rule.type,
-      status: isOptionalOnlySection ? "partial" : "error",
-      score: isOptionalOnlySection ? 0.5 : 0,
+      status: "error",
+      score: 0,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: isOptionalOnlySection
         ? `Условный раздел не открылся: ${fetchResult.error}`
         : `Страница раздела не открылась: ${fetchResult.error}`,
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "page_error"
     }));
 
     return {
@@ -135,7 +158,8 @@ async function checkSection(
       score: 0,
       summary: buildSummary(items, rules.length === 0 || !isOptionalOnlySection ? 1 : 0),
       items,
-      message: `Страница раздела не открылась: ${fetchResult.error}`
+      message: `Страница раздела не открылась: ${fetchResult.error}`,
+      diagnostics: [`Проверьте доступность URL раздела, редиректы и HTTP-статус: ${url}`]
     };
   }
 
@@ -151,6 +175,7 @@ async function checkSection(
     score: calculateSectionScore(items),
     summary: buildSummary(items),
     items,
+    diagnostics: buildSectionDiagnostics(items),
     message:
       rules.length === 0
         ? "Страница открылась. Itemprop-правила для этого раздела будут добавлены позже."
@@ -240,11 +265,14 @@ async function checkRule(
         title: rule.title,
         itemprop: rule.itemprop,
         ruleType: rule.type,
-        status: "partial",
-        score: 0.5,
-        message: `Условный itemprop ${rule.itemprop} не найден. Проверьте вручную, применим ли пункт к организации.`,
+        status: "not_applicable",
+        score: 1,
+        weight: getRuleWeight(rule),
+        maxScore: getRuleWeight(rule),
+        message: `Условный itemprop ${rule.itemprop} не найден. Если пункт неприменим к организации, это не снижает оценку.`,
         legalSourceId: rule.legalSourceId,
-        severity: rule.severity
+        severity: rule.severity,
+        problemType: "not_applicable"
       };
     }
 
@@ -255,9 +283,12 @@ async function checkRule(
       ruleType: rule.type,
       status: "missing",
       score: 0,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: `itemprop ${rule.itemprop} не найден`,
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "missing_itemprop"
     };
   }
 
@@ -272,9 +303,12 @@ async function checkRule(
       ruleType: rule.type,
       status: "empty",
       score: 0.5,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: `itemprop ${rule.itemprop} найден, но значение не заполнено`,
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "empty_value"
     };
   }
 
@@ -282,6 +316,27 @@ async function checkRule(
 
   if (rule.type === "itempropLink") {
     return await checkItempropLink($, elements, rule, pageUrl, joinedValue, options);
+  }
+
+  const quality = validateItemValue(rule, filledValues, pageUrl);
+
+  if (quality) {
+    return {
+      key: rule.key,
+      title: rule.title,
+      itemprop: rule.itemprop,
+      ruleType: rule.type,
+      status: "invalid",
+      score: 0.5,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
+      message: quality.message,
+      value: truncateValue(joinedValue),
+      legalSourceId: rule.legalSourceId,
+      severity: rule.severity,
+      problemType: "invalid_value",
+      quality
+    };
   }
 
   if (filledValues.length < values.length) {
@@ -292,10 +347,13 @@ async function checkRule(
       ruleType: rule.type,
       status: "partial",
       score: 0.5,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: `itemprop ${rule.itemprop} найден, но часть значений пустая`,
       value: truncateValue(joinedValue),
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "empty_value"
     };
   }
 
@@ -306,10 +364,13 @@ async function checkRule(
     ruleType: rule.type,
     status: "found",
     score: 1,
+    weight: getRuleWeight(rule),
+    maxScore: getRuleWeight(rule),
     message: "Пункт найден и заполнен",
     value: truncateValue(joinedValue),
     legalSourceId: rule.legalSourceId,
-    severity: rule.severity
+    severity: rule.severity,
+    problemType: "ok"
   };
 }
 
@@ -333,10 +394,18 @@ async function checkItempropLink(
       ruleType: rule.type,
       status: "partial",
       score: 0.5,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: `itemprop ${rule.itemprop} найден, но ссылка на документ или ресурс не найдена`,
       value: truncateValue(joinedValue),
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "document_unavailable",
+      quality: {
+        kind: "document",
+        message: "Ссылка на документ или ресурс отсутствует",
+        suggestion: "Укажите href у ссылки с нужным itemprop или вложенной ссылки внутри блока."
+      }
     };
   }
 
@@ -348,15 +417,19 @@ async function checkItempropLink(
       ruleType: rule.type,
       status: "found",
       score: 1,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: "Пункт найден, ссылка указана",
       value: truncateValue(links.join("; ")),
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "ok"
     };
   }
 
   const checks = await Promise.all(links.slice(0, 3).map((link) => checkResource(link, options)));
   const available = checks.filter((check) => check.ok);
+  const suspicious = checks.find((check, index) => check.ok && isSuspiciousDocumentResponse(links[index], check, rule));
 
   if (available.length === 0) {
     return {
@@ -364,12 +437,43 @@ async function checkItempropLink(
       title: rule.title,
       itemprop: rule.itemprop,
       ruleType: rule.type,
-      status: "partial",
-      score: 0.5,
+      status: "document_error",
+      score: 0,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
       message: `Ссылка найдена, но не открылась: ${checks[0]?.message ?? "ресурс недоступен"}`,
       value: truncateValue(links.join("; ")),
       legalSourceId: rule.legalSourceId,
-      severity: rule.severity
+      severity: rule.severity,
+      problemType: "document_unavailable",
+      quality: {
+        kind: "document",
+        message: checks[0]?.message ?? "Документ недоступен",
+        suggestion: "Проверьте путь к файлу, права доступа, редиректы и наличие файла на сайте."
+      }
+    };
+  }
+
+  if (suspicious) {
+    return {
+      key: rule.key,
+      title: rule.title,
+      itemprop: rule.itemprop,
+      ruleType: rule.type,
+      status: "document_error",
+      score: 0,
+      weight: getRuleWeight(rule),
+      maxScore: getRuleWeight(rule),
+      message: `Ссылка открылась, но ресурс похож не на документ: ${suspicious.message}`,
+      value: truncateValue(links.join("; ")),
+      legalSourceId: rule.legalSourceId,
+      severity: rule.severity,
+      problemType: "document_unavailable",
+      quality: {
+        kind: "document",
+        message: suspicious.message,
+        suggestion: "Проверьте, что ссылка ведёт прямо на PDF/DOC/DOCX/XLS/XLSX или другой доступный файл."
+      }
     };
   }
 
@@ -380,13 +484,16 @@ async function checkItempropLink(
     ruleType: rule.type,
     status: available.length === checks.length ? "found" : "partial",
     score: available.length === checks.length ? 1 : 0.5,
+    weight: getRuleWeight(rule),
+    maxScore: getRuleWeight(rule),
     message:
       available.length === checks.length
         ? "Пункт найден, ссылка открывается"
         : "Пункт найден, но часть ссылок не открылась",
     value: truncateValue(links.join("; ")),
     legalSourceId: rule.legalSourceId,
-    severity: rule.severity
+    severity: rule.severity,
+    problemType: available.length === checks.length ? "ok" : "document_unavailable"
   };
 }
 
@@ -448,7 +555,7 @@ async function fetchAdditionalPages(pageUrl: string, html: string, options: Reso
   return results.flatMap((result) => (result.ok ? [result.html] : []));
 }
 
-async function checkResource(url: string, options: ResolvedCheckSvedenOptions): Promise<{ ok: boolean; message: string }> {
+async function checkResource(url: string, options: ResolvedCheckSvedenOptions): Promise<ResourceCheckResult> {
   const headResult = await fetchResource(url, "HEAD", options.resourceTimeoutMs, options.signal);
 
   if (headResult.ok || headResult.statusCode === 405 || headResult.statusCode === 403) {
@@ -463,7 +570,7 @@ async function fetchResource(
   method: "HEAD" | "GET",
   timeoutMs: number,
   signal?: AbortSignal
-): Promise<{ ok: boolean; statusCode?: number; message: string }> {
+): Promise<ResourceCheckResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const abort = () => controller.abort();
@@ -484,7 +591,9 @@ async function fetchResource(
     return {
       ok: response.ok,
       statusCode: response.status,
-      message: response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}`
+      message: response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}`,
+      contentType: response.headers.get("content-type"),
+      contentLength: parseContentLength(response.headers.get("content-length"))
     };
   } catch (error) {
     if (signal?.aborted) {
@@ -506,7 +615,13 @@ function calculateSectionScore(items: CheckResultItem[]): number {
     return 100;
   }
 
-  return Math.round((items.reduce((sum, item) => sum + item.score, 0) / items.length) * 100);
+  const maxScore = items.reduce((sum, item) => sum + getItemWeight(item), 0);
+
+  if (maxScore === 0) {
+    return 100;
+  }
+
+  return Math.round((items.reduce((sum, item) => sum + item.score * getItemWeight(item), 0) / maxScore) * 100);
 }
 
 function calculateOverallScore(sections: CheckReportSection[]): number {
@@ -516,16 +631,30 @@ function calculateOverallScore(sections: CheckReportSection[]): number {
     return 0;
   }
 
-  return Math.round((items.reduce((sum, item) => sum + item.score, 0) / items.length) * 100);
+  const maxScore = items.reduce((sum, item) => sum + getItemWeight(item), 0);
+
+  if (maxScore === 0) {
+    return 0;
+  }
+
+  return Math.round((items.reduce((sum, item) => sum + item.score * getItemWeight(item), 0) / maxScore) * 100);
 }
 
 function buildSummary(items: CheckResultItem[], pageErrors = 0): CheckSummary {
+  const weightedScore = items.reduce((sum, item) => sum + item.score * getItemWeight(item), 0);
+  const maxScore = items.reduce((sum, item) => sum + getItemWeight(item), 0);
+
   return {
     total: items.length,
     found: items.filter((item) => item.status === "found").length,
     partial: items.filter((item) => item.status === "partial" || item.status === "empty").length,
     missing: items.filter((item) => item.status === "missing").length,
-    errors: items.filter((item) => item.status === "error").length + pageErrors
+    errors: items.filter((item) => item.status === "error").length + pageErrors,
+    invalid: items.filter((item) => item.status === "invalid").length,
+    documentErrors: items.filter((item) => item.status === "document_error").length,
+    notApplicable: items.filter((item) => item.status === "not_applicable").length,
+    weightedScore,
+    maxScore
   };
 }
 
@@ -536,10 +665,306 @@ function mergeSummaries(summaries: CheckSummary[]): CheckSummary {
       found: result.found + summary.found,
       partial: result.partial + summary.partial,
       missing: result.missing + summary.missing,
-      errors: result.errors + summary.errors
+      errors: result.errors + summary.errors,
+      invalid: (result.invalid ?? 0) + (summary.invalid ?? 0),
+      documentErrors: (result.documentErrors ?? 0) + (summary.documentErrors ?? 0),
+      notApplicable: (result.notApplicable ?? 0) + (summary.notApplicable ?? 0),
+      weightedScore: (result.weightedScore ?? 0) + (summary.weightedScore ?? 0),
+      maxScore: (result.maxScore ?? 0) + (summary.maxScore ?? 0)
     }),
-    { total: 0, found: 0, partial: 0, missing: 0, errors: 0 }
+    { total: 0, found: 0, partial: 0, missing: 0, errors: 0, invalid: 0, documentErrors: 0, notApplicable: 0, weightedScore: 0, maxScore: 0 }
   );
+}
+
+function getRuleWeight(rule: SvedenRuleSection["items"][number]): number {
+  if (!rule.required) {
+    return 0.4;
+  }
+
+  if (rule.severity === "error") {
+    return 1;
+  }
+
+  if (rule.severity === "warning") {
+    return 0.65;
+  }
+
+  return 0.35;
+}
+
+function getItemWeight(item: CheckResultItem): number {
+  return item.weight ?? item.maxScore ?? (item.severity === "error" ? 1 : item.severity === "info" ? 0.35 : 0.65);
+}
+
+function validateItemValue(
+  rule: SvedenRuleSection["items"][number],
+  values: string[],
+  pageUrl: string
+): CheckResultItem["quality"] | null {
+  const lowerItemprop = rule.itemprop.toLowerCase();
+  const normalizedValues = values.map((value) => normalizeText(value));
+  const meaningfulValues = normalizedValues.filter((value) => !isPlaceholderValue(value));
+
+  if (meaningfulValues.length === 0) {
+    return {
+      kind: "placeholder",
+      message: `itemprop ${rule.itemprop} заполнен служебной заглушкой или формальным пустым значением`,
+      suggestion: "Замените «нет», «-», «не заполнено» и похожие заглушки на реальное значение или понятное текстовое пояснение."
+    };
+  }
+
+  if (lowerItemprop.includes("email") || lowerItemprop.includes("mail")) {
+    const invalidEmail = meaningfulValues.find((value) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
+
+    if (invalidEmail) {
+      return {
+        kind: "email",
+        message: `Некорректный адрес электронной почты в itemprop ${rule.itemprop}`,
+        suggestion: `Проверьте формат адреса: сейчас найдено «${truncateValue(invalidEmail)}».`
+      };
+    }
+  }
+
+  if (lowerItemprop.includes("telephone") || lowerItemprop.includes("tel")) {
+    const invalidPhone = meaningfulValues.find((value) => value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "").length < 6);
+
+    if (invalidPhone) {
+      return {
+        kind: "telephone",
+        message: `Некорректный телефон в itemprop ${rule.itemprop}`,
+        suggestion: `Укажите телефон в читаемом формате, например +7 (41132) 00-0-00. Сейчас найдено «${truncateValue(invalidPhone)}».`
+      };
+    }
+  }
+
+  if (lowerItemprop.includes("website") || lowerItemprop === "site") {
+    const invalidUrl = meaningfulValues.find((value) => !isValidUrlLike(value, pageUrl));
+
+    if (invalidUrl) {
+      return {
+        kind: "url",
+        message: `Некорректная ссылка в itemprop ${rule.itemprop}`,
+        suggestion: `Проверьте href или текст ссылки. Сейчас найдено «${truncateValue(invalidUrl)}».`
+      };
+    }
+  }
+
+  return null;
+}
+
+function isPlaceholderValue(value: string): boolean {
+  const normalized = value.toLowerCase().replace(/[.\s]+$/g, "").trim();
+  const placeholders = new Set([
+    "-",
+    "--",
+    "—",
+    "нет",
+    "нет данных",
+    "не заполнено",
+    "информация отсутствует",
+    "сведения отсутствуют",
+    "не имеется",
+    "отсутствует",
+    "n/a"
+  ]);
+
+  return normalized.length === 0 || placeholders.has(normalized);
+}
+
+function isValidUrlLike(value: string, pageUrl: string): boolean {
+  try {
+    new URL(value, pageUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSuspiciousDocumentResponse(
+  url: string | undefined,
+  check: ResourceCheckResult,
+  rule: SvedenRuleSection["items"][number]
+): boolean {
+  if (!check.ok) {
+    return false;
+  }
+
+  if (check.contentLength === 0) {
+    return true;
+  }
+
+  const contentType = (check.contentType ?? "").toLowerCase();
+  const lowerUrl = (url ?? "").toLowerCase();
+  const looksLikeDocumentRule =
+    rule.itemprop.toLowerCase().includes("doc") ||
+    rule.itemprop.toLowerCase().includes("link") ||
+    /\.(pdf|doc|docx|xls|xlsx|odt|ods|rtf)(\?|#|$)/i.test(lowerUrl);
+
+  return looksLikeDocumentRule && contentType.includes("text/html") && /\.(pdf|doc|docx|xls|xlsx|odt|ods|rtf)(\?|#|$)/i.test(lowerUrl);
+}
+
+function parseContentLength(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function analyzeSvedenStructure(siteUrl: string, rootResult: FetchResult): StructureCheckResult {
+  if (!rootResult.ok) {
+    return {
+      score: 0,
+      diagnostics: [`Главная страница /sveden/ не открылась: ${rootResult.error}.`],
+      missingPaths: mainSvedenSections.map((section) => section.path)
+    };
+  }
+
+  const $ = cheerio.load(rootResult.html);
+  const hrefs = new Set(
+    $("a[href]")
+      .toArray()
+      .map((element) => {
+        try {
+          return new URL($(element).attr("href") ?? "", buildSectionUrl(siteUrl, "/sveden/")).pathname.replace(/\/+$/, "/");
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean)
+  );
+  const missingPaths = mainSvedenSections
+    .filter((section) => !hrefs.has(section.path))
+    .map((section) => section.path);
+  const score = Math.round(((mainSvedenSections.length - missingPaths.length) / mainSvedenSections.length) * 100);
+
+  return {
+    score,
+    diagnostics:
+      missingPaths.length > 0
+        ? [`На странице /sveden/ не найдены ссылки на подразделы: ${missingPaths.join(", ")}.`]
+        : ["Структура /sveden/ содержит ссылки на основные подразделы."],
+    missingPaths
+  };
+}
+
+function buildSectionDiagnostics(items: CheckResultItem[]): string[] {
+  const diagnostics: string[] = [];
+  const missing = items.filter((item) => item.status === "missing").length;
+  const invalid = items.filter((item) => item.status === "invalid").length;
+  const documentErrors = items.filter((item) => item.status === "document_error").length;
+
+  if (missing > 0) {
+    diagnostics.push(`Отсутствуют обязательные itemprop: ${missing}.`);
+  }
+
+  if (invalid > 0) {
+    diagnostics.push(`Найдены значения, похожие на ошибочные или формальные: ${invalid}.`);
+  }
+
+  if (documentErrors > 0) {
+    diagnostics.push(`Есть недоступные или подозрительные ссылки на документы: ${documentErrors}.`);
+  }
+
+  return diagnostics;
+}
+
+function buildReportDiagnostics(sections: CheckReportSection[], structureCheck: StructureCheckResult): string[] {
+  const items = sections.flatMap((section) => section.items);
+  const sectionErrors = sections.filter((section) => section.status === "error").length;
+  const missing = items.filter((item) => item.status === "missing").length;
+  const invalid = items.filter((item) => item.status === "invalid").length;
+  const documentErrors = items.filter((item) => item.status === "document_error").length;
+  const notApplicable = items.filter((item) => item.status === "not_applicable").length;
+  const diagnostics = [...structureCheck.diagnostics];
+
+  if (sectionErrors > 0) {
+    diagnostics.push(`Не открываются подразделы /sveden/: ${sectionErrors}. Эти сайты или страницы нужно проверить до анализа itemprop.`);
+  }
+
+  if (missing > 0) {
+    diagnostics.push(`Часть сведений отсутствует в HTML-разметке itemprop: ${missing} пунктов.`);
+  }
+
+  if (invalid > 0) {
+    diagnostics.push(`Есть некорректные значения: email, телефон, URL или формальные заглушки: ${invalid} пунктов.`);
+  }
+
+  if (documentErrors > 0) {
+    diagnostics.push(`Есть проблемы с документами и ссылками на файлы: ${documentErrors} пунктов.`);
+  }
+
+  if (notApplicable > 0) {
+    diagnostics.push(`Условные пункты отмечены как неприменимые без штрафа: ${notApplicable}. Их стоит подтвердить вручную.`);
+  }
+
+  if (diagnostics.length === 0) {
+    diagnostics.push("Критичных типовых проблем не найдено.");
+  }
+
+  return diagnostics;
+}
+
+function buildFixPlan(
+  sections: CheckReportSection[],
+  structureCheck: StructureCheckResult,
+  diagnostics: string[]
+): string[] {
+  const items = sections.flatMap((section) => section.items.map((item) => ({ ...item, sectionTitle: section.title, sectionUrl: section.url })));
+  const criticalMissing = items.filter((item) => item.status === "missing" && item.severity === "error");
+  const pageErrors = sections.filter((section) => section.status === "error");
+  const documentErrors = items.filter((item) => item.status === "document_error");
+  const invalid = items.filter((item) => item.status === "invalid");
+  const plan: string[] = [];
+
+  if (structureCheck.missingPaths.length > 0) {
+    plan.push(`Восстановить навигацию на /sveden/: добавить ссылки на ${structureCheck.missingPaths.join(", ")}.`);
+  }
+
+  if (pageErrors.length > 0) {
+    plan.push(`Сначала открыть недоступные подразделы: ${pageErrors.map((section) => section.title).join(", ")}.`);
+  }
+
+  if (criticalMissing.length > 0) {
+    plan.push(`Добавить обязательные itemprop с высокой важностью: ${criticalMissing.slice(0, 8).map((item) => item.itemprop ?? item.key).join(", ")}.`);
+  }
+
+  if (documentErrors.length > 0) {
+    plan.push(`Проверить файлы и прямые ссылки на документы: ${documentErrors.slice(0, 8).map((item) => item.itemprop ?? item.key).join(", ")}.`);
+  }
+
+  if (invalid.length > 0) {
+    plan.push(`Исправить качество значений: ${invalid.slice(0, 8).map((item) => item.itemprop ?? item.key).join(", ")}.`);
+  }
+
+  if (plan.length === 0 && diagnostics.length > 0) {
+    plan.push("Проверить оставшиеся предупреждения и условные пункты вручную.");
+  }
+
+  return plan;
+}
+
+function buildScoreBreakdown(sections: CheckReportSection[], structureCheck: StructureCheckResult): CheckReport["scoreBreakdown"] {
+  const items = sections.flatMap((section) => section.items);
+  const documentItems = items.filter((item) => item.ruleType === "itempropLink");
+  const qualityItems = items.filter((item) => item.status === "invalid" || item.status === "found" || item.status === "partial" || item.status === "empty");
+
+  return {
+    structure: structureCheck.score,
+    completeness: calculateOverallScore(sections),
+    quality: calculateItemsScore(qualityItems),
+    documents: documentItems.length > 0 ? calculateItemsScore(documentItems) : 100
+  };
+}
+
+function calculateItemsScore(items: CheckResultItem[]): number {
+  if (items.length === 0) {
+    return 100;
+  }
+
+  const maxScore = items.reduce((sum, item) => sum + getItemWeight(item), 0);
+  return maxScore === 0 ? 100 : Math.round((items.reduce((sum, item) => sum + item.score * getItemWeight(item), 0) / maxScore) * 100);
 }
 
 function attachLegalReferences(
@@ -560,7 +985,8 @@ function attachLegalReferences(
 
       return {
         ...item,
-        legalSource: buildLegalReference(item, section, source)
+        legalSource: buildLegalReference(item, section, source),
+        legalPoint: buildLegalPoint(item, section, source)
       };
     })
   };
