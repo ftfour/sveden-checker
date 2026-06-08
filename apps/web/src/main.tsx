@@ -231,6 +231,16 @@ type RecommendationPriority = "high" | "medium" | "low";
 
 type RecommendationFilter = "all" | "high" | "medium" | "low" | "missing" | "empty" | "error" | "invalid" | "document_error";
 
+type SectionItemFilter = "problems" | "all" | "found" | "not_applicable";
+
+type ReportIssueCard = {
+  key: string;
+  title: string;
+  value: number;
+  tone: "missing" | "partial" | "found";
+  detail: string;
+};
+
 type Recommendation = {
   id: string;
   sectionId: string;
@@ -584,67 +594,66 @@ function CheckPage({
 
   return (
     <main className="checker-page">
-      <section className="checker-hero">
-        <div className="checker-hero__content">
-          <a className="back-link" href="/">
-            <ArrowLeft size={18} aria-hidden="true" />
-            На главную
-          </a>
-          <a
-            className="back-link"
-            href="/recommendations"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate("/recommendations");
-            }}
-          >
-            <Wrench size={18} aria-hidden="true" />
-            Рекомендации по исправлениям
-          </a>
-          <a
-            className="back-link"
-            href="/rating"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate("/rating");
-            }}
-          >
-            <BarChart3 size={18} aria-hidden="true" />
-            Рейтинг сайтов
-          </a>
-          <div>
-            <p className="eyebrow">Локальная проверка сайта</p>
-            <h1>Проверка раздела «Сведения об образовательной организации»</h1>
-            <p className="hero__lead">
-              Введите адрес сайта. Frontend отправит запрос только на локальный backend, а backend скачает страницы
-              `/sveden/`, проверит HTML, itemprop и ссылки на документы по расширенному ruleset.
-            </p>
-          </div>
-          <form className="check-form" onSubmit={handleSubmit}>
-            <label htmlFor="site-url">Адрес сайта образовательной организации</label>
-            <div className="check-form__row">
-              <input
-                id="site-url"
-                name="url"
-                type="url"
-                placeholder="https://example.ru"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                required
-              />
-              <button className="button button--primary check-form__button" type="submit" disabled={isLoading}>
-                {isLoading ? <LoaderCircle className="spin" size={20} aria-hidden="true" /> : <Search size={20} aria-hidden="true" />}
-                Проверить
-              </button>
-            </div>
-          </form>
-          <p className="privacy-note checker-note">
-            Все внешние HTTP-запросы выполняет только backend. Результаты проверки остаются в локальном приложении.
-          </p>
-        </div>
-      </section>
+      <header className="checker-command">
+        <div className="checker-command__inner">
+          <nav className="top-links top-links--dark" aria-label="Навигация проверки">
+            <a className="back-link" href="/">
+              <ArrowLeft size={18} aria-hidden="true" />
+              На главную
+            </a>
+            <a
+              className="back-link"
+              href="/recommendations"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/recommendations");
+              }}
+            >
+              <Wrench size={18} aria-hidden="true" />
+              Рекомендации
+            </a>
+            <a
+              className="back-link"
+              href="/rating"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/rating");
+              }}
+            >
+              <BarChart3 size={18} aria-hidden="true" />
+              Рейтинг
+            </a>
+          </nav>
 
-      <section className="section">
+          <div className="checker-command__body">
+            <div className="checker-command__title">
+              <p className="eyebrow">Локальная проверка сайта</p>
+              <h1>Проверка /sveden/</h1>
+              <p>Backend скачивает страницы, проверяет itemprop и документы. Данные остаются на этом компьютере.</p>
+            </div>
+            <form className="check-form check-form--command" onSubmit={handleSubmit}>
+              <label htmlFor="site-url">Адрес сайта</label>
+              <div className="check-form__row">
+                <input
+                  id="site-url"
+                  name="url"
+                  type="url"
+                  placeholder="https://example.ru"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  required
+                />
+                <button className="button button--primary check-form__button" type="submit" disabled={isLoading}>
+                  {isLoading ? <LoaderCircle className="spin" size={20} aria-hidden="true" /> : <Search size={20} aria-hidden="true" />}
+                  Проверить
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </header>
+
+      <section className="section section--checker">
         {isLoading && (
           <div className="loading-card">
             <LoaderCircle className="spin" size={26} aria-hidden="true" />
@@ -668,36 +677,62 @@ function CheckPage({
 function CheckReportView({ report, navigate }: { report: CheckReport; navigate: (path: string) => void }) {
   const [activeSectionId, setActiveSectionId] = React.useState(report.sections[0]?.id ?? "");
   const activeSection = report.sections.find((section) => section.id === activeSectionId) ?? report.sections[0];
+  const issueCards = buildReportIssueCards(report);
 
   React.useEffect(() => {
     setActiveSectionId(report.sections[0]?.id ?? "");
   }, [report.checkedAt, report.siteUrl, report.sections]);
 
   return (
-    <div className="report">
-      <div className="report-summary">
-        <div>
-          <p className="eyebrow">Результат</p>
-          <h2>{report.overallScore}% готовности</h2>
-          <p>
-            Проверен сайт {report.siteUrl}. Дата проверки: {new Date(report.checkedAt).toLocaleString("ru-RU")}.
-          </p>
+    <div className="report report--console">
+      <section className="report-overview">
+        <div className="report-overview__score">
+          <p className="eyebrow">Результат проверки</p>
+          <div className="score-display" aria-label={`Общий процент готовности ${report.overallScore}%`}>
+            <strong>{report.overallScore}%</strong>
+            <span>готовность</span>
+          </div>
         </div>
-        <div className="score-ring" aria-label={`Общий процент готовности ${report.overallScore}%`}>
-          {report.overallScore}%
+        <div className="report-overview__main">
+          <h2>{report.siteUrl}</h2>
+          <p>Проверено {new Date(report.checkedAt).toLocaleString("ru-RU")}</p>
+          <div className="report-actions">
+            <a
+              className="action-button"
+              href="/recommendations"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/recommendations");
+              }}
+            >
+              <Wrench size={19} aria-hidden="true" />
+              Рекомендации
+            </a>
+          </div>
         </div>
-      </div>
+        <div className="report-overview__metrics">
+          <SummaryBadge label="Пунктов" value={report.summary.total} />
+          <SummaryBadge label="Найдено" value={report.summary.found} tone="found" />
+          <SummaryBadge label="Проблем" value={countReportProblems(report)} tone={countReportProblems(report) > 0 ? "missing" : "found"} />
+        </div>
+      </section>
 
-      <div className="summary-strip">
-        <SummaryBadge label="Всего пунктов" value={report.summary.total} />
-        <SummaryBadge label="Найдено" value={report.summary.found} tone="found" />
-        <SummaryBadge label="Частично" value={report.summary.partial} tone="partial" />
-        <SummaryBadge label="Отсутствует" value={report.summary.missing} tone="missing" />
-        <SummaryBadge label="Ошибки" value={report.summary.errors} tone="missing" />
-        <SummaryBadge label="Некорректно" value={report.summary.invalid ?? 0} tone="partial" />
-        <SummaryBadge label="Документы" value={report.summary.documentErrors ?? 0} tone="missing" />
-        <SummaryBadge label="Неприменимо" value={report.summary.notApplicable ?? 0} />
-      </div>
+      {issueCards.length > 0 ? (
+        <div className="issue-strip" aria-label="Что требует внимания">
+          {issueCards.map((item) => (
+            <article className={`issue-chip issue-chip--${item.tone}`} key={item.key}>
+              <strong>{item.value}</strong>
+              <span>{item.title}</span>
+              <small>{item.detail}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="notice-card notice-card--good notice-card--compact">
+          <CheckCircle2 size={20} aria-hidden="true" />
+          <span>Критичных недочётов в заполненности, значениях и документах не найдено.</span>
+        </div>
+      )}
 
       {report.previousComparison && (
         <div className={report.previousComparison.delta >= 0 ? "notice-card notice-card--good" : "notice-card notice-card--warn"}>
@@ -718,70 +753,50 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
         </div>
       )}
 
-      {report.diagnostics && report.diagnostics.length > 0 && (
-        <div className="diagnostics-card">
-          <div>
-            <p className="eyebrow">Диагностика</p>
-            <h3>Типовые проблемы сайта</h3>
+      <div className="report-workspace">
+        <aside className="section-nav" aria-label="Подразделы /sveden/">
+          <div className="section-nav__header">
+            <p className="eyebrow">Подразделы</p>
+            <strong>{report.sections.length}</strong>
           </div>
-          <ul>
-            {report.diagnostics.map((diagnostic) => (
-              <li key={diagnostic}>{diagnostic}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+          <div className="section-tabs" role="tablist" aria-label="Подразделы /sveden/">
+            {report.sections.map((section) => {
+              const problems = countSectionProblems(section);
 
-      {report.fixPlan && report.fixPlan.length > 0 && (
-        <div className="diagnostics-card diagnostics-card--plan">
-          <div>
-            <p className="eyebrow">План исправлений</p>
-            <h3>Рекомендуемый порядок работ</h3>
+              return (
+                <button
+                  aria-selected={activeSection?.id === section.id}
+                  className={activeSection?.id === section.id ? "section-tab section-tab--active" : "section-tab"}
+                  key={section.id}
+                  onClick={() => setActiveSectionId(section.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <span>{section.title}</span>
+                  <strong>{section.score}%</strong>
+                  {problems > 0 && <em>{problems} недоч.</em>}
+                </button>
+              );
+            })}
           </div>
-          <ol>
-            {report.fixPlan.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        </div>
-      )}
+        </aside>
 
-      <div className="report-actions">
-        <a
-          className="action-button"
-          href="/recommendations"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/recommendations");
-          }}
-        >
-          <Wrench size={19} aria-hidden="true" />
-          Сформировать рекомендации
-        </a>
+        <div className="section-detail">{activeSection && <SectionResultCard section={activeSection} />}</div>
       </div>
-
-      <div className="section-tabs" role="tablist" aria-label="Подразделы /sveden/">
-        {report.sections.map((section) => (
-          <button
-            aria-selected={activeSection?.id === section.id}
-            className={activeSection?.id === section.id ? "section-tab section-tab--active" : "section-tab"}
-            key={section.id}
-            onClick={() => setActiveSectionId(section.id)}
-            role="tab"
-            type="button"
-          >
-            <span>{section.title}</span>
-            <strong>{section.score}%</strong>
-          </button>
-        ))}
-      </div>
-
-      {activeSection && <SectionResultCard section={activeSection} />}
     </div>
   );
 }
 
 function SectionResultCard({ section }: { section: CheckReportSection }) {
+  const problemItems = section.items.filter(isProblemItem);
+  const [filter, setFilter] = React.useState<SectionItemFilter>(problemItems.length > 0 ? "problems" : "all");
+
+  React.useEffect(() => {
+    setFilter(problemItems.length > 0 ? "problems" : "all");
+  }, [section.id, problemItems.length]);
+
+  const filteredItems = section.items.filter((item) => matchesSectionItemFilter(item, filter));
+
   return (
     <article className={`result-card result-card--${section.status}`}>
       <div className="result-card__header">
@@ -794,33 +809,57 @@ function SectionResultCard({ section }: { section: CheckReportSection }) {
         <div className="result-card__score">{section.score}%</div>
       </div>
 
+      <div className="section-progress" aria-label={`Готовность раздела ${section.score}%`}>
+        <span style={{ width: `${section.score}%` }} />
+      </div>
+
       <div className="result-card__stats">
         <SummaryBadge label="Найдено" value={section.summary.found} tone="found" />
-        <SummaryBadge label="Частично" value={section.summary.partial} tone="partial" />
-        <SummaryBadge label="Нет" value={section.summary.missing} tone="missing" />
-        <SummaryBadge label="Ошибки" value={section.summary.errors} tone="missing" />
-        <SummaryBadge label="Некорректно" value={section.summary.invalid ?? 0} tone="partial" />
-        <SummaryBadge label="Документы" value={section.summary.documentErrors ?? 0} tone="missing" />
-        <SummaryBadge label="Неприменимо" value={section.summary.notApplicable ?? 0} />
+        {section.summary.partial > 0 && <SummaryBadge label="Частично" value={section.summary.partial} tone="partial" />}
+        {section.summary.missing > 0 && <SummaryBadge label="Нет" value={section.summary.missing} tone="missing" />}
+        {section.summary.errors > 0 && <SummaryBadge label="Ошибки" value={section.summary.errors} tone="missing" />}
+        {(section.summary.invalid ?? 0) > 0 && <SummaryBadge label="Некорректно" value={section.summary.invalid ?? 0} tone="partial" />}
+        {(section.summary.documentErrors ?? 0) > 0 && <SummaryBadge label="Документы" value={section.summary.documentErrors ?? 0} tone="missing" />}
+        {(section.summary.notApplicable ?? 0) > 0 && <SummaryBadge label="Неприменимо" value={section.summary.notApplicable ?? 0} />}
       </div>
 
       {section.message && <p className="result-card__message">{section.message}</p>}
-      {section.diagnostics && section.diagnostics.length > 0 && (
-        <ul className="section-diagnostics">
-          {section.diagnostics.map((diagnostic) => (
-            <li key={diagnostic}>{diagnostic}</li>
-          ))}
-        </ul>
-      )}
 
       <SectionGroupedTables section={section} />
 
       {section.items.length > 0 ? (
-        <ul className="check-items">
-          {section.items.map((item) => (
+        <>
+          <div className="item-toolbar">
+            <div>
+              <p className="eyebrow">Пункты проверки</p>
+              <strong>{filteredItems.length} из {section.items.length}</strong>
+            </div>
+            <div className="item-filter-tabs" aria-label="Фильтр пунктов раздела">
+              {sectionItemFilters.map((item) => (
+                <button
+                  className={filter === item.value ? "filter-button filter-button--active" : "filter-button"}
+                  key={item.value}
+                  onClick={() => setFilter(item.value)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {filteredItems.length === 0 ? (
+            <div className="empty-state-inline">
+              <CheckCircle2 size={19} aria-hidden="true" />
+              По выбранному фильтру пунктов нет.
+            </div>
+          ) : (
+            <ul className="check-items">
+              {filteredItems.map((item) => (
             <CheckItemRow item={item} key={item.key} />
-          ))}
-        </ul>
+              ))}
+            </ul>
+          )}
+        </>
       ) : (
         <p className="result-card__message">Для раздела пока проверяется только доступность страницы.</p>
       )}
@@ -837,16 +876,19 @@ function SectionGroupedTables({ section }: { section: CheckReportSection }) {
 
   return (
     <div className="grouped-tables">
-      {groups.map((group) => (
-        <article className="grouped-table-card" key={group.parentItemprop}>
-          <div className="grouped-table-card__heading">
+      {groups.map((group) => {
+        const issueCount = countGroupIssues(group.children);
+
+        return (
+        <details className="grouped-table-card" key={group.parentItemprop}>
+          <summary className="grouped-table-card__heading">
             <div>
-              <p className="eyebrow">{group.parent.ruleNumber ? `Пункт ${group.parent.ruleNumber}` : group.parent.itemprop}</p>
-              <h4>{group.parent.title}</h4>
-              {group.parent.ruleHint && <p>{group.parent.ruleHint}</p>}
+              <p className="eyebrow">{group.parent.ruleNumber ? `Пункт ${group.parent.ruleNumber}` : "Таблица"}</p>
+              <h4>{group.parent.itemprop}</h4>
+              <p>{group.parent.title}</p>
             </div>
-            <span>{group.rows.length} строк</span>
-          </div>
+            <span>{group.rows.length} строк{issueCount > 0 ? ` · ${issueCount} недоч.` : ""}</span>
+          </summary>
           <div className="grouped-table-wrap">
             <table className="grouped-table">
               <thead>
@@ -885,8 +927,9 @@ function SectionGroupedTables({ section }: { section: CheckReportSection }) {
               </tbody>
             </table>
           </div>
-        </article>
-      ))}
+        </details>
+        );
+      })}
     </div>
   );
 }
@@ -923,6 +966,9 @@ function buildSectionGroups(section: CheckReportSection): Array<{
 }
 
 function CheckItemRow({ item }: { item: CheckResultItem }) {
+  const problem = isProblemItem(item);
+  const hasDetails = Boolean(item.ruleHint || item.instances?.length || item.legalSource || item.value || item.parentItemprop || item.layout);
+
   return (
     <li className={`check-item check-item--${item.status}`}>
       <span className="status-dot" aria-hidden="true" />
@@ -930,19 +976,27 @@ function CheckItemRow({ item }: { item: CheckResultItem }) {
         <div className="check-item__heading">
           {item.ruleNumber && <span className="rule-number">{item.ruleNumber}</span>}
           <strong>{item.title}</strong>
+          <span className={`status-pill status-pill--${item.status}`}>{statusLabel(item.status)}</span>
         </div>
-        <p>{item.message}</p>
-        {item.ruleHint && <p className="item-hint">{item.ruleHint}</p>}
-        {item.quality?.suggestion && <p>{item.quality.suggestion}</p>}
+        {problem && <p>{item.message}</p>}
+        {item.quality?.suggestion && <p className="item-suggestion">{item.quality.suggestion}</p>}
         <div className="item-meta">
-          {item.parentItemprop && <span>родитель: itemprop="{item.parentItemprop}"</span>}
           {item.itemprop && <span>itemprop="{item.itemprop}"</span>}
-          {item.layout && <span>{layoutLabel(item.layout)}</span>}
-          {item.weight && <span>вес {item.weight}</span>}
+          {item.parentItemprop && <span>в таблице {item.parentItemprop}</span>}
         </div>
-        {item.value && <small>{item.value}</small>}
-        {item.instances && item.instances.length > 0 && <ItemInstancesTable item={item} />}
-        {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
+        {item.value && !item.instances?.length && <small>{item.value}</small>}
+        {hasDetails && (
+          <details className="item-details">
+            <summary>{problem ? "Основание и найденные строки" : "Подробности"}</summary>
+            <div className="item-details__content">
+              {item.ruleHint && <p className="item-hint">{item.ruleHint}</p>}
+              {item.layout && <p>Формат размещения: {layoutLabel(item.layout)}.</p>}
+              {item.value && <small>{item.value}</small>}
+              {item.instances && item.instances.length > 0 && <ItemInstancesTable item={item} />}
+              {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
+            </div>
+          </details>
+        )}
       </div>
     </li>
   );
@@ -1782,6 +1836,13 @@ function SummaryBadge({ label, value, tone }: { label: string; value: number; to
   );
 }
 
+const sectionItemFilters: Array<{ label: string; value: SectionItemFilter }> = [
+  { label: "Недочёты", value: "problems" },
+  { label: "Все", value: "all" },
+  { label: "Готово", value: "found" },
+  { label: "Неприменимо", value: "not_applicable" }
+];
+
 const recommendationFilters: Array<{ label: string; value: RecommendationFilter }> = [
   { label: "Все", value: "all" },
   { label: "Срочные", value: "high" },
@@ -1802,6 +1863,93 @@ const ratingFilters: Array<{ label: string; value: "all" | RatingSiteStatus }> =
   { label: "В очереди", value: "pending" },
   { label: "Сейчас проверяется", value: "running" }
 ];
+
+function isProblemItem(item: CheckResultItem): boolean {
+  return item.status === "missing" || item.status === "partial" || item.status === "empty" || item.status === "error" || item.status === "invalid" || item.status === "document_error";
+}
+
+function matchesSectionItemFilter(item: CheckResultItem, filter: SectionItemFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "problems") return isProblemItem(item);
+  if (filter === "found") return item.status === "found";
+  return item.status === "not_applicable";
+}
+
+function countReportProblems(report: CheckReport): number {
+  return report.sections.reduce((sum, section) => sum + countSectionProblems(section), 0);
+}
+
+function countSectionProblems(section: CheckReportSection): number {
+  return section.items.filter(isProblemItem).length + (section.status === "error" ? 1 : 0);
+}
+
+function countGroupIssues(children: CheckResultItem[]): number {
+  return children.reduce(
+    (sum, child) => sum + (child.instances?.filter((instance) => instance.status === "missing" || instance.status === "empty").length ?? 0),
+    0
+  );
+}
+
+function buildReportIssueCards(report: CheckReport): ReportIssueCard[] {
+  const cards: ReportIssueCard[] = [];
+  const pageErrors = report.sections.filter((section) => section.status === "error").length;
+  const missing = report.summary.missing;
+  const partial = report.summary.partial;
+  const invalid = report.summary.invalid ?? 0;
+  const documentErrors = report.summary.documentErrors ?? 0;
+
+  if (pageErrors > 0 || report.summary.errors > 0) {
+    cards.push({
+      key: "errors",
+      title: "страницы",
+      value: report.summary.errors,
+      tone: "missing",
+      detail: pageErrors > 0 ? "часть подразделов не загрузилась" : "есть ошибки проверки"
+    });
+  }
+
+  if (missing > 0) {
+    cards.push({
+      key: "missing",
+      title: "не найдено",
+      value: missing,
+      tone: "missing",
+      detail: "нет нужных itemprop в HTML"
+    });
+  }
+
+  if (invalid > 0) {
+    cards.push({
+      key: "invalid",
+      title: "значения",
+      value: invalid,
+      tone: "partial",
+      detail: "email, телефон, URL или заглушки"
+    });
+  }
+
+  if (documentErrors > 0) {
+    cards.push({
+      key: "documents",
+      title: "документы",
+      value: documentErrors,
+      tone: "missing",
+      detail: "ссылки не открываются или выглядят неверно"
+    });
+  }
+
+  if (partial > 0) {
+    cards.push({
+      key: "partial",
+      title: "частично",
+      value: partial,
+      tone: "partial",
+      detail: "часть строк или значений заполнена неполно"
+    });
+  }
+
+  return cards;
+}
 
 async function fetchLatestRatingRun(): Promise<RatingRunDetails | null> {
   const response = await fetch("/api/rating-runs/latest");
