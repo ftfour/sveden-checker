@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import { getLegalSources } from "@sveden-checker/database";
 import { getSvedenItempropRuleset, type SvedenRuleSection } from "@sveden-checker/rulesets";
-import type { CheckLegalReference, CheckReport, CheckReportSection, CheckResultItem, CheckSummary, LegalSource } from "@sveden-checker/shared";
+import type { CheckLegalReference, CheckReport, CheckReportSection, CheckResultInstance, CheckResultItem, CheckSummary, LegalSource } from "@sveden-checker/shared";
 
 type PageCheckSection = {
   id: string;
@@ -165,7 +165,7 @@ async function checkSection(
 
   const additionalHtml = await fetchAdditionalPages(url, fetchResult.html, options);
   const $ = cheerio.load([fetchResult.html, ...additionalHtml].join("\n"));
-  const items = await Promise.all(rules.map((rule) => checkRule($, rule, url, options)));
+  const items = await Promise.all(rules.map(async (rule) => attachRuleMetadata(await checkRule($, rule, url, options), rule)));
 
   return {
     id: pageSection.id,
@@ -257,8 +257,28 @@ async function checkRule(
   options: ResolvedCheckSvedenOptions
 ): Promise<CheckResultItem> {
   const elements = findRuleElements($, rule);
+  const parentElements = findParentRuleElements($, rule);
+  const instances = buildRuleInstances($, rule, pageUrl);
 
   if (elements.length === 0) {
+    if (rule.requiredWhenParentExists && parentElements.length > 0) {
+      return {
+        key: rule.key,
+        title: rule.title,
+        itemprop: rule.itemprop,
+        ruleType: rule.type,
+        status: "missing",
+        score: 0,
+        weight: getRuleWeight(rule),
+        maxScore: getRuleWeight(rule),
+        message: `В строках itemprop ${rule.parentItemprop} не найден обязательный itemprop ${rule.itemprop}`,
+        legalSourceId: rule.legalSourceId,
+        severity: rule.severity,
+        problemType: "missing_itemprop",
+        instances
+      };
+    }
+
     if (!rule.required) {
       return {
         key: rule.key,
@@ -272,7 +292,8 @@ async function checkRule(
         message: `Условный itemprop ${rule.itemprop} не найден. Если пункт неприменим к организации, это не снижает оценку.`,
         legalSourceId: rule.legalSourceId,
         severity: rule.severity,
-        problemType: "not_applicable"
+        problemType: "not_applicable",
+        instances
       };
     }
 
@@ -288,7 +309,8 @@ async function checkRule(
       message: `itemprop ${rule.itemprop} не найден`,
       legalSourceId: rule.legalSourceId,
       severity: rule.severity,
-      problemType: "missing_itemprop"
+      problemType: "missing_itemprop",
+      instances
     };
   }
 
@@ -308,14 +330,15 @@ async function checkRule(
       message: `itemprop ${rule.itemprop} найден, но значение не заполнено`,
       legalSourceId: rule.legalSourceId,
       severity: rule.severity,
-      problemType: "empty_value"
+      problemType: "empty_value",
+      instances
     };
   }
 
   const joinedValue = filledValues.join("; ");
 
   if (rule.type === "itempropLink") {
-    return await checkItempropLink($, elements, rule, pageUrl, joinedValue, options);
+    return await checkItempropLink($, elements, rule, pageUrl, joinedValue, options, instances);
   }
 
   const quality = validateItemValue(rule, filledValues, pageUrl);
@@ -335,11 +358,15 @@ async function checkRule(
       legalSourceId: rule.legalSourceId,
       severity: rule.severity,
       problemType: "invalid_value",
-      quality
+      quality,
+      instances
     };
   }
 
-  if (filledValues.length < values.length) {
+  const missingInstances = instances.filter((instance) => instance.status === "missing").length;
+  const emptyInstances = instances.filter((instance) => instance.status === "empty").length;
+
+  if (filledValues.length < values.length || missingInstances > 0 || emptyInstances > 0) {
     return {
       key: rule.key,
       title: rule.title,
@@ -353,7 +380,8 @@ async function checkRule(
       value: truncateValue(joinedValue),
       legalSourceId: rule.legalSourceId,
       severity: rule.severity,
-      problemType: "empty_value"
+      problemType: missingInstances > 0 ? "missing_itemprop" : "empty_value",
+      instances
     };
   }
 
@@ -370,7 +398,8 @@ async function checkRule(
     value: truncateValue(joinedValue),
     legalSourceId: rule.legalSourceId,
     severity: rule.severity,
-    problemType: "ok"
+    problemType: "ok",
+    instances
   };
 }
 
@@ -380,13 +409,33 @@ async function checkItempropLink(
   rule: SvedenRuleSection["items"][number],
   pageUrl: string,
   joinedValue: string,
-  options: ResolvedCheckSvedenOptions
+  options: ResolvedCheckSvedenOptions,
+  instances: CheckResultInstance[] = []
 ): Promise<CheckResultItem> {
   const links = elements
     .map((element) => extractElementUrl($, element, pageUrl))
     .filter((value): value is string => Boolean(value));
 
   if (links.length === 0) {
+    if (rule.allowTextFallback && joinedValue.length > 0) {
+      return {
+        key: rule.key,
+        title: rule.title,
+        itemprop: rule.itemprop,
+        ruleType: rule.type,
+        status: "found",
+        score: 1,
+        weight: getRuleWeight(rule),
+        maxScore: getRuleWeight(rule),
+        message: `Пункт найден и заполнен текстовым значением`,
+        value: truncateValue(joinedValue),
+        legalSourceId: rule.legalSourceId,
+        severity: rule.severity,
+        problemType: "ok",
+        instances
+      };
+    }
+
     return {
       key: rule.key,
       title: rule.title,
@@ -405,9 +454,13 @@ async function checkItempropLink(
         kind: "document",
         message: "Ссылка на документ или ресурс отсутствует",
         suggestion: "Укажите href у ссылки с нужным itemprop или вложенной ссылки внутри блока."
-      }
+      },
+      instances
     };
   }
+
+  const missingInstances = instances.filter((instance) => instance.status === "missing").length;
+  const emptyInstances = instances.filter((instance) => instance.status === "empty").length;
 
   if (!options.checkResourceLinks) {
     return {
@@ -415,15 +468,16 @@ async function checkItempropLink(
       title: rule.title,
       itemprop: rule.itemprop,
       ruleType: rule.type,
-      status: "found",
-      score: 1,
+      status: missingInstances > 0 || emptyInstances > 0 ? "partial" : "found",
+      score: missingInstances > 0 || emptyInstances > 0 ? 0.5 : 1,
       weight: getRuleWeight(rule),
       maxScore: getRuleWeight(rule),
-      message: "Пункт найден, ссылка указана",
+      message: missingInstances > 0 || emptyInstances > 0 ? "Пункт найден, но не во всех строках указана ссылка" : "Пункт найден, ссылка указана",
       value: truncateValue(links.join("; ")),
       legalSourceId: rule.legalSourceId,
       severity: rule.severity,
-      problemType: "ok"
+      problemType: missingInstances > 0 || emptyInstances > 0 ? "document_unavailable" : "ok",
+      instances
     };
   }
 
@@ -450,7 +504,8 @@ async function checkItempropLink(
         kind: "document",
         message: checks[0]?.message ?? "Документ недоступен",
         suggestion: "Проверьте путь к файлу, права доступа, редиректы и наличие файла на сайте."
-      }
+      },
+      instances
     };
   }
 
@@ -473,7 +528,8 @@ async function checkItempropLink(
         kind: "document",
         message: suspicious.message,
         suggestion: "Проверьте, что ссылка ведёт прямо на PDF/DOC/DOCX/XLS/XLSX или другой доступный файл."
-      }
+      },
+      instances
     };
   }
 
@@ -482,18 +538,21 @@ async function checkItempropLink(
     title: rule.title,
     itemprop: rule.itemprop,
     ruleType: rule.type,
-    status: available.length === checks.length ? "found" : "partial",
-    score: available.length === checks.length ? 1 : 0.5,
+    status: available.length === checks.length && missingInstances === 0 && emptyInstances === 0 ? "found" : "partial",
+    score: available.length === checks.length && missingInstances === 0 && emptyInstances === 0 ? 1 : 0.5,
     weight: getRuleWeight(rule),
     maxScore: getRuleWeight(rule),
     message:
       available.length === checks.length
-        ? "Пункт найден, ссылка открывается"
+        ? missingInstances === 0 && emptyInstances === 0
+          ? "Пункт найден, ссылка открывается"
+          : "Пункт найден, но не во всех строках указана ссылка"
         : "Пункт найден, но часть ссылок не открылась",
     value: truncateValue(links.join("; ")),
     legalSourceId: rule.legalSourceId,
     severity: rule.severity,
-    problemType: available.length === checks.length ? "ok" : "document_unavailable"
+    problemType: available.length === checks.length && missingInstances === 0 && emptyInstances === 0 ? "ok" : "document_unavailable",
+    instances
   };
 }
 
@@ -509,6 +568,68 @@ function findRuleElements($: cheerio.CheerioAPI, rule: SvedenRuleSection["items"
   return $(`[itemprop~="${escapeCssAttribute(rule.parentItemprop)}"]`)
     .toArray()
     .flatMap((parent) => $(parent).find(selector).toArray());
+}
+
+function findParentRuleElements($: cheerio.CheerioAPI, rule: SvedenRuleSection["items"][number]): CheerioElement[] {
+  if (!rule.parentItemprop) {
+    return [];
+  }
+
+  return $(`[itemprop~="${escapeCssAttribute(rule.parentItemprop)}"]`).toArray();
+}
+
+function buildRuleInstances(
+  $: cheerio.CheerioAPI,
+  rule: SvedenRuleSection["items"][number],
+  pageUrl: string
+): CheckResultInstance[] {
+  const parents = findParentRuleElements($, rule);
+
+  if (parents.length === 0) {
+    return [];
+  }
+
+  const selector = `[itemprop~="${escapeCssAttribute(rule.itemprop)}"]`;
+
+  return parents.map((parent, index) => {
+    const child = $(parent).find(selector).first();
+
+    if (child.length === 0) {
+      return {
+        index: index + 1,
+        status: "missing",
+        message: `В строке ${index + 1} не найден itemprop="${rule.itemprop}"`
+      };
+    }
+
+    const value = extractElementValue($, child.get(0));
+    const href = rule.type === "itempropLink" ? extractElementUrl($, child.get(0), pageUrl) ?? undefined : undefined;
+
+    if (!value && !href) {
+      return {
+        index: index + 1,
+        status: "empty",
+        message: `В строке ${index + 1} itemprop="${rule.itemprop}" пустой`
+      };
+    }
+
+    return {
+      index: index + 1,
+      status: "found",
+      value: truncateValue(value || href || ""),
+      href
+    };
+  });
+}
+
+function attachRuleMetadata(item: CheckResultItem, rule: SvedenRuleSection["items"][number]): CheckResultItem {
+  return {
+    ...item,
+    parentItemprop: rule.parentItemprop,
+    ruleNumber: rule.number,
+    ruleHint: rule.hint,
+    layout: rule.layout
+  };
 }
 
 function extractElementValue($: cheerio.CheerioAPI, element: CheerioElement): string {
@@ -1006,28 +1127,29 @@ function buildLegalReference(item: CheckResultItem, section: CheckReportSection,
 
 function buildLegalPoint(item: CheckResultItem, section: CheckReportSection, source: LegalSource): string {
   const itemprop = item.itemprop ? `itemprop="${item.itemprop}"` : `ключ правила "${item.key}"`;
+  const ruleNumber = item.ruleNumber ? `п. ${item.ruleNumber}, ` : "";
 
   if (source.id === "fz-273-art-29") {
-    return `Статья 29, требование об открытом размещении сведений; раздел "${section.title}", ${itemprop}.`;
+    return `Статья 29, требование об открытом размещении сведений; ${ruleNumber}раздел "${section.title}", ${itemprop}.`;
   }
 
   if (source.id === "pp-rf-1802") {
-    return `Правила размещения информации на официальном сайте; раздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+    return `Правила размещения информации на официальном сайте; ${ruleNumber}раздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
   }
 
   if (source.id.startsWith("rosobrnadzor-1493") || source.id === "rosobrnadzor-1353") {
-    return `Структура специального раздела и HTML-разметка; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+    return `Структура специального раздела и HTML-разметка; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
   }
 
   if (source.id.startsWith("rosobrnadzor-955")) {
-    return `Проверочный лист по официальному сайту; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+    return `Проверочный лист по официальному сайту; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
   }
 
   if (source.id.startsWith("methodical")) {
-    return `Методические рекомендации по представлению сведений; подраздел "${section.title}", ${itemprop}.`;
+    return `Методические рекомендации v9.0.0, таблица 3.2.1; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
   }
 
-  return `${source.short_title ?? source.title}; подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
+  return `${source.short_title ?? source.title}; ${ruleNumber}подраздел "${section.title}", пункт "${item.title}", ${itemprop}.`;
 }
 
 function buildSectionUrl(siteUrl: string, path: string): string {

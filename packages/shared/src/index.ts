@@ -66,10 +66,22 @@ export type CheckQualityIssue = {
   suggestion?: string;
 };
 
+export type CheckResultInstance = {
+  index: number;
+  status: "found" | "empty" | "missing";
+  value?: string;
+  href?: string;
+  message?: string;
+};
+
 export type CheckResultItem = {
   key: string;
   title: string;
   itemprop?: string;
+  parentItemprop?: string;
+  ruleNumber?: string;
+  ruleHint?: string;
+  layout?: "text" | "link" | "table" | "table_row";
   ruleType?: "itemprop" | "itempropLink";
   status: CheckItemStatus;
   score: number;
@@ -83,6 +95,7 @@ export type CheckResultItem = {
   problemType?: CheckProblemType;
   quality?: CheckQualityIssue;
   legalPoint?: string;
+  instances?: CheckResultInstance[];
 };
 
 export type CheckLegalReference = {

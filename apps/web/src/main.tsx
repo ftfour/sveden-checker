@@ -82,10 +82,22 @@ type CheckQualityIssue = {
   suggestion?: string;
 };
 
+type CheckResultInstance = {
+  index: number;
+  status: "found" | "empty" | "missing";
+  value?: string;
+  href?: string;
+  message?: string;
+};
+
 type CheckResultItem = {
   key: string;
   title: string;
   itemprop?: string;
+  parentItemprop?: string;
+  ruleNumber?: string;
+  ruleHint?: string;
+  layout?: "text" | "link" | "table" | "table_row";
   ruleType?: "itemprop" | "itempropLink";
   status: CheckItemStatus;
   score: number;
@@ -99,6 +111,7 @@ type CheckResultItem = {
   problemType?: CheckProblemType;
   quality?: CheckQualityIssue;
   legalPoint?: string;
+  instances?: CheckResultInstance[];
 };
 
 type CheckReportSection = {
@@ -226,6 +239,9 @@ type Recommendation = {
   itemKey: string;
   itemTitle: string;
   itemprop: string;
+  ruleNumber?: string;
+  ruleHint?: string;
+  layout?: "text" | "link" | "table" | "table_row";
   status: CheckItemStatus;
   severity: "error" | "warning" | "info";
   priority: RecommendationPriority;
@@ -651,6 +667,13 @@ function CheckPage({
 }
 
 function CheckReportView({ report, navigate }: { report: CheckReport; navigate: (path: string) => void }) {
+  const [activeSectionId, setActiveSectionId] = React.useState(report.sections[0]?.id ?? "");
+  const activeSection = report.sections.find((section) => section.id === activeSectionId) ?? report.sections[0];
+
+  React.useEffect(() => {
+    setActiveSectionId(report.sections[0]?.id ?? "");
+  }, [report.checkedAt, report.siteUrl, report.sections]);
+
   return (
     <div className="report">
       <div className="report-summary">
@@ -738,61 +761,127 @@ function CheckReportView({ report, navigate }: { report: CheckReport; navigate: 
         </a>
       </div>
 
-      <div className="section-results">
+      <div className="section-tabs" role="tablist" aria-label="Подразделы /sveden/">
         {report.sections.map((section) => (
-          <article className={`result-card result-card--${section.status}`} key={section.id}>
-            <div className="result-card__header">
-              <div>
-                <h3>{section.title}</h3>
-                <a href={section.url} target="_blank" rel="noreferrer">
-                  {section.url}
-                </a>
-              </div>
-              <div className="result-card__score">{section.score}%</div>
-            </div>
-
-            <div className="result-card__stats">
-              <SummaryBadge label="Найдено" value={section.summary.found} tone="found" />
-              <SummaryBadge label="Частично" value={section.summary.partial} tone="partial" />
-              <SummaryBadge label="Нет" value={section.summary.missing} tone="missing" />
-              <SummaryBadge label="Ошибки" value={section.summary.errors} tone="missing" />
-              <SummaryBadge label="Некорректно" value={section.summary.invalid ?? 0} tone="partial" />
-              <SummaryBadge label="Документы" value={section.summary.documentErrors ?? 0} tone="missing" />
-              <SummaryBadge label="Неприменимо" value={section.summary.notApplicable ?? 0} />
-            </div>
-
-            {section.message && <p className="result-card__message">{section.message}</p>}
-            {section.diagnostics && section.diagnostics.length > 0 && (
-              <ul className="section-diagnostics">
-                {section.diagnostics.map((diagnostic) => (
-                  <li key={diagnostic}>{diagnostic}</li>
-                ))}
-              </ul>
-            )}
-
-            {section.items.length > 0 ? (
-              <ul className="check-items">
-                {section.items.map((item) => (
-                  <li className={`check-item check-item--${item.status}`} key={item.key}>
-                    <span className="status-dot" aria-hidden="true" />
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.message}</p>
-                      {item.quality?.suggestion && <p>{item.quality.suggestion}</p>}
-                      {item.itemprop && <small>itemprop="{item.itemprop}"</small>}
-                      {item.weight && <small>Вес пункта: {item.weight}</small>}
-                      {item.value && <small>{item.value}</small>}
-                      {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="result-card__message">Для раздела пока проверяется только доступность страницы.</p>
-            )}
-          </article>
+          <button
+            aria-selected={activeSection?.id === section.id}
+            className={activeSection?.id === section.id ? "section-tab section-tab--active" : "section-tab"}
+            key={section.id}
+            onClick={() => setActiveSectionId(section.id)}
+            role="tab"
+            type="button"
+          >
+            <span>{section.title}</span>
+            <strong>{section.score}%</strong>
+          </button>
         ))}
       </div>
+
+      {activeSection && <SectionResultCard section={activeSection} />}
+    </div>
+  );
+}
+
+function SectionResultCard({ section }: { section: CheckReportSection }) {
+  return (
+    <article className={`result-card result-card--${section.status}`}>
+      <div className="result-card__header">
+        <div>
+          <h3>{section.title}</h3>
+          <a href={section.url} target="_blank" rel="noreferrer">
+            {section.url}
+          </a>
+        </div>
+        <div className="result-card__score">{section.score}%</div>
+      </div>
+
+      <div className="result-card__stats">
+        <SummaryBadge label="Найдено" value={section.summary.found} tone="found" />
+        <SummaryBadge label="Частично" value={section.summary.partial} tone="partial" />
+        <SummaryBadge label="Нет" value={section.summary.missing} tone="missing" />
+        <SummaryBadge label="Ошибки" value={section.summary.errors} tone="missing" />
+        <SummaryBadge label="Некорректно" value={section.summary.invalid ?? 0} tone="partial" />
+        <SummaryBadge label="Документы" value={section.summary.documentErrors ?? 0} tone="missing" />
+        <SummaryBadge label="Неприменимо" value={section.summary.notApplicable ?? 0} />
+      </div>
+
+      {section.message && <p className="result-card__message">{section.message}</p>}
+      {section.diagnostics && section.diagnostics.length > 0 && (
+        <ul className="section-diagnostics">
+          {section.diagnostics.map((diagnostic) => (
+            <li key={diagnostic}>{diagnostic}</li>
+          ))}
+        </ul>
+      )}
+
+      {section.items.length > 0 ? (
+        <ul className="check-items">
+          {section.items.map((item) => (
+            <CheckItemRow item={item} key={item.key} />
+          ))}
+        </ul>
+      ) : (
+        <p className="result-card__message">Для раздела пока проверяется только доступность страницы.</p>
+      )}
+    </article>
+  );
+}
+
+function CheckItemRow({ item }: { item: CheckResultItem }) {
+  return (
+    <li className={`check-item check-item--${item.status}`}>
+      <span className="status-dot" aria-hidden="true" />
+      <div>
+        <div className="check-item__heading">
+          {item.ruleNumber && <span className="rule-number">{item.ruleNumber}</span>}
+          <strong>{item.title}</strong>
+        </div>
+        <p>{item.message}</p>
+        {item.ruleHint && <p className="item-hint">{item.ruleHint}</p>}
+        {item.quality?.suggestion && <p>{item.quality.suggestion}</p>}
+        <div className="item-meta">
+          {item.parentItemprop && <span>родитель: itemprop="{item.parentItemprop}"</span>}
+          {item.itemprop && <span>itemprop="{item.itemprop}"</span>}
+          {item.layout && <span>{layoutLabel(item.layout)}</span>}
+          {item.weight && <span>вес {item.weight}</span>}
+        </div>
+        {item.value && <small>{item.value}</small>}
+        {item.instances && item.instances.length > 0 && <ItemInstancesTable item={item} />}
+        {item.legalSource && <LegalReferenceView reference={item.legalSource} compact />}
+      </div>
+    </li>
+  );
+}
+
+function ItemInstancesTable({ item }: { item: CheckResultItem }) {
+  return (
+    <div className="instances-table-wrap">
+      <table className="instances-table">
+        <thead>
+          <tr>
+            <th>Строка</th>
+            <th>Статус</th>
+            <th>{item.itemprop ?? item.key}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {item.instances?.map((instance) => (
+            <tr className={`instances-table__row instances-table__row--${instance.status}`} key={instance.index}>
+              <td>{instance.index}</td>
+              <td>{instanceStatusLabel(instance.status)}</td>
+              <td>
+                {instance.href ? (
+                  <a href={instance.href} rel="noreferrer" target="_blank">
+                    {instance.value || instance.href}
+                  </a>
+                ) : (
+                  instance.value || instance.message || "-"
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1457,6 +1546,18 @@ function RecommendationGroup({
                 <dt>itemprop</dt>
                 <dd>{recommendation.itemprop}</dd>
               </div>
+              {recommendation.ruleNumber && (
+                <div>
+                  <dt>Пункт методички</dt>
+                  <dd>Таблица 3.2.1, пункт {recommendation.ruleNumber}</dd>
+                </div>
+              )}
+              {recommendation.ruleHint && (
+                <div>
+                  <dt>Как размещать</dt>
+                  <dd>{recommendation.ruleHint}</dd>
+                </div>
+              )}
               {recommendation.legalSource && (
                 <div>
                   <dt>Нормативное основание</dt>
@@ -1756,6 +1857,9 @@ function buildRecommendations(report: CheckReport): Recommendation[] {
           itemKey: item.key,
           itemTitle: item.title,
           itemprop,
+          ruleNumber: item.ruleNumber,
+          ruleHint: item.ruleHint,
+          layout: item.layout,
           status: item.status,
           severity: item.severity ?? "warning",
           priority,
@@ -1832,6 +1936,16 @@ function recommendationText(item: CheckResultItem, itemprop: string): string {
 }
 
 function buildExampleHtml(itemprop: string, title: string, ruleType?: "itemprop" | "itempropLink"): string {
+  if (itemprop === "uchredLaw") {
+    return `<tr itemprop="uchredLaw">
+  <td itemprop="nameUchred">Наименование учредителя</td>
+  <td itemprop="addressUchred">Сведения о юридическом адресе учредителя</td>
+  <td itemprop="telUchred">+7 (41132) 00-0-00</td>
+  <td itemprop="mailUchred">example@example.ru</td>
+  <td><a itemprop="websiteUchred" href="https://example.ru">https://example.ru</a></td>
+</tr>`;
+  }
+
   if (itemprop.toLowerCase().includes("email")) {
     return `<a itemprop="${itemprop}" href="mailto:example@example.ru">example@example.ru</a>`;
   }
@@ -1867,6 +1981,27 @@ function statusLabel(status: CheckItemStatus): string {
   };
 
   return labels[status];
+}
+
+function instanceStatusLabel(status: CheckResultInstance["status"]): string {
+  const labels: Record<CheckResultInstance["status"], string> = {
+    empty: "пусто",
+    found: "найдено",
+    missing: "нет"
+  };
+
+  return labels[status];
+}
+
+function layoutLabel(layout: NonNullable<CheckResultItem["layout"]>): string {
+  const labels: Record<NonNullable<CheckResultItem["layout"]>, string> = {
+    link: "ссылка/документ",
+    table: "таблица или повторяемый список",
+    table_row: "строка таблицы",
+    text: "текстовое значение"
+  };
+
+  return labels[layout];
 }
 
 function priorityLabel(priority: RecommendationPriority): string {
