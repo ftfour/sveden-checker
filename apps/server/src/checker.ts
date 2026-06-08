@@ -57,19 +57,19 @@ const defaultCheckOptions: Required<Omit<CheckSvedenOptions, "signal">> = {
 
 const mainSvedenSections: PageCheckSection[] = [
   { id: "common", title: "Основные сведения", path: "/sveden/common/" },
-  { id: "struct", title: "Структура и органы управления", path: "/sveden/struct/" },
+  { id: "struct", title: "Структура и органы управления образовательной организацией", path: "/sveden/struct/" },
   { id: "document", title: "Документы", path: "/sveden/document/" },
   { id: "education", title: "Образование", path: "/sveden/education/" },
   { id: "eduStandarts", title: "Образовательные стандарты и требования", path: "/sveden/eduStandarts/" },
   { id: "managers", title: "Руководство", path: "/sveden/managers/", fallbackPaths: ["/sveden/employees/"] },
   { id: "employees", title: "Педагогический состав", path: "/sveden/employees/" },
-  { id: "objects", title: "Материально-техническое обеспечение", path: "/sveden/objects/" },
-  { id: "grants", title: "Стипендии", path: "/sveden/grants/" },
+  { id: "objects", title: "Материально-техническое обеспечение и оснащённость образовательного процесса. Доступная среда", path: "/sveden/objects/" },
+  { id: "grants", title: "Стипендии и меры поддержки обучающихся", path: "/sveden/grants/" },
   { id: "paid_edu", title: "Платные образовательные услуги", path: "/sveden/paid_edu/" },
   { id: "budget", title: "Финансово-хозяйственная деятельность", path: "/sveden/budget/" },
-  { id: "vacant", title: "Вакантные места", path: "/sveden/vacant/" },
+  { id: "vacant", title: "Вакантные места для приёма (перевода) обучающихся", path: "/sveden/vacant/" },
   { id: "inter", title: "Международное сотрудничество", path: "/sveden/inter/" },
-  { id: "catering", title: "Организация питания", path: "/sveden/catering/" }
+  { id: "catering", title: "Организация питания в образовательной организации", path: "/sveden/catering/" }
 ];
 
 export async function checkSvedenSite(rawUrl: string, options: CheckSvedenOptions = {}): Promise<CheckReport> {
@@ -1156,7 +1156,18 @@ function getMethodicalTableNumber(sectionId: string): string {
   const tables: Record<string, string> = {
     common: "таблица 3.2.1",
     struct: "таблица 3.3.1",
-    document: "таблица 3.4.1"
+    document: "таблица 3.4.1",
+    education: "таблица 3.5.1",
+    eduStandarts: "таблица 3.6.1",
+    managers: "таблица 3.7.1",
+    employees: "таблица 3.8.1",
+    objects: "таблица 3.9.1",
+    grants: "таблица 3.10.1",
+    paid_edu: "таблица 3.11.1",
+    budget: "таблица 3.12.1",
+    vacant: "таблица 3.13.1",
+    inter: "таблица 3.14.1",
+    catering: "таблица 3.15.1"
   };
 
   return tables[sectionId] ?? "таблица с перечнем атрибутов микроразметки";

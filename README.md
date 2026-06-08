@@ -217,9 +217,11 @@ reports/
 
 Отчёт также содержит диагностику структуры `/sveden/`, типовые проблемы сайта, план исправлений и разбивку оценки по структуре, заполненности, качеству значений и документам.
 
-Для подраздела `/sveden/common/` правила идут в порядке таблицы 3.2.1 Методических рекомендаций v9.0.0. В отчёте показываются номера пунктов, например `5.5`, и точные `itemprop`: `uchredLaw`, `nameUchred`, `addressUchred`, `telUchred`, `mailUchred`, `websiteUchred`, `accreditationDocLink`. Если на странице есть строка или блок `itemprop="uchredLaw"`, то сайт учредителя `itemprop="websiteUchred"` проверяется как обязательный для этой строки.
+Правила по основным подразделам `/sveden/` идут в порядке Методических рекомендаций v9.0.0 и содержат номера пунктов, точные названия проверяемой информации и точные `itemprop`. Поддержаны таблицы 3.2.1-3.15.1: `common`, `struct`, `document`, `education`, `eduStandarts`, `managers`, `employees`, `objects`, `grants`, `paid_edu`, `budget`, `vacant`, `inter`, `catering`.
 
-Для подразделов `/sveden/struct/` и `/sveden/document/` правила также идут по Методическим рекомендациям v9.0.0: таблица 3.3.1 для структуры и органов управления, таблица 3.4.1 для документов. В `struct` поддерживаются повторяемые строки `structOrgUprav`, `filInfo`, `repInfo` с дочерними itemprop, включая `fioFil`, `postFil`, `emailFil`, `fioRep`, `postRep`, `emailRep` и положения `divisionClauseDocLink`.
+Для табличных и повторяемых блоков checker группирует строки по родительским itemprop: например `uchredLaw`, `structOrgUprav`, `filInfo`, `repInfo`, `eduAccred`, `eduOp`, `teachingStaff`, `purposeCab`, `purposePrac`, `purposeLibr`, `purposeSport`, `volume`, `vacant`, `internationalDog`, `meals`. В отчёте показываются дочерние пункты по строкам таблицы и номера вроде `2.1`, `5.5`, `9.11`.
+
+В `/sveden/common/` используется номенклатура методички: `nameUchred`, `addressUchred`, `telUchred`, `mailUchred`, `websiteUchred`. Если на странице есть строка или блок `itemprop="uchredLaw"`, то сайт учредителя `itemprop="websiteUchred"` проверяется как обязательный для этой строки.
 
 Страница результата `/check` показывает подразделы во вкладках. Для пунктов, которые должны размещаться таблицей или повторяемыми строками, отчёт выводит найденные экземпляры в читаемой таблице по строкам и отдельную сводную таблицу по группе.
 
